@@ -236,10 +236,55 @@ async function listModels(provider, cfg) {
   return ids.filter(Boolean).sort();
 }
 
+// --------------------------------------------------------- basic mode (Google)
+// The keyless endpoint used by browser translation add-ons. Multiple `q` params in one
+// request come back as an array in the same order, so cue alignment is preserved.
+const GOOGLE_URL = 'https://translate.googleapis.com/translate_a/t?client=gtx&sl=auto&format=text&tl=';
+const GOOGLE_MAX_LINES = 100;
+const GOOGLE_MAX_CHARS = 9000;
+
+async function googleTranslate(texts, target) {
+  const tl = N.googleLang(target);
+  if (!tl) throw new ApiError(`基础模式不支持目标语言「${target}」，请在设置中选择列表里的语言，或改用 AI 模式`, true);
+  const out = [];
+  for (let i = 0; i < texts.length;) {
+    const chunk = [];
+    let chars = 0;
+    while (i < texts.length && chunk.length < GOOGLE_MAX_LINES && (chars + texts[i].length < GOOGLE_MAX_CHARS || !chunk.length)) {
+      chars += texts[i].length;
+      chunk.push(texts[i++]);
+    }
+    const body = new URLSearchParams();
+    chunk.forEach((t) => body.append('q', t));
+    let res;
+    try {
+      res = await fetchWithRetry(GOOGLE_URL + encodeURIComponent(tl), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: body.toString()
+      });
+    } catch (e) {
+      throw new ApiError('Google 翻译暂时不可用（' + e.message + '），可稍后重试或改用 AI 模式', e.fatal);
+    }
+    let data = await res.json().catch(() => null);
+    if (typeof data === 'string') data = [data];
+    if (!Array.isArray(data) || data.length !== chunk.length) throw new ApiError('Google 翻译返回格式异常');
+    // sl=auto returns [translation, detectedLang] per line; sl=<code> returns plain strings.
+    for (const item of data) out.push(String(Array.isArray(item) ? item[0] : item || '').trim());
+  }
+  return out;
+}
+
 // ----------------------------------------------------------------- handlers
 const handlers = {
   async 'ntusub-translate'(msg, sender) {
     const s = await N.getSettings();
+    if (N.isBasic(s)) {
+      const tr = await googleTranslate(msg.lines.map((l) => l.text), s.targetLang);
+      const translations = {};
+      msg.lines.forEach((l, i) => { if (tr[i]) translations[l.id] = tr[i]; });
+      return { translations };
+    }
     const cfg = s.providers[s.provider];
     const system = buildSystemPrompt(s, [sender.tab && sender.tab.title, msg.frameTitle]);
     const raw = await callModel(s.provider, cfg, system, buildUserPrompt(msg));
@@ -256,6 +301,10 @@ const handlers = {
       { id: '2', text: 'using the chain rule, and then look at how gradient descent updates the weights.' }
     ];
     const t0 = Date.now();
+    if (msg.provider === N.BASIC_PROVIDER) {
+      const tr = await googleTranslate(lines.map((l) => l.text), s.targetLang);
+      return { ms: Date.now() - t0, lines: lines.map((l, i) => ({ src: l.text, tr: tr[i] || '' })), raw: '' };
+    }
     const raw = await callModel(msg.provider, cfg, buildSystemPrompt(s, []), buildUserPrompt({ lines }));
     const tr = parseTranslations(raw, ['1', '2']);
     return { ms: Date.now() - t0, lines: lines.map((l) => ({ src: l.text, tr: tr[l.id] || '' })), raw: Object.keys(tr).length ? '' : raw.slice(0, 300) };

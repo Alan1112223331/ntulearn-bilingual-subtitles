@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "NTULearn 双语字幕 AI 翻译",
   "short_name": "NTU 双语字幕",
-  "version": "1.0.0",
-  "description": "为 NTULearn Media Gallery (Kaltura) 视频提供 AI 大模型预翻译的双语字幕，支持 OpenAI / Anthropic / Gemini 格式自定义接口。",
+  "version": "1.1.0",
+  "description": "为 NTULearn Media Gallery (Kaltura) 视频生成双语字幕：免配置基础模式（Google 翻译）开箱即用，也可接入 OpenAI / Anthropic / Gemini 格式大模型精准翻译专业术语。",
   "author": "Alan_m-12",
   "homepage_url": "https://github.com/Alan1112223331/ntulearn-bilingual-subtitles",
   "minimum_chrome_version": "111",
@@ -31,7 +31,8 @@
   ],
   "host_permissions": [
     "https://*.kaltura.com/*",
-    "https://*.ntu.edu.sg/*"
+    "https://*.ntu.edu.sg/*",
+    "https://translate.googleapis.com/*"
   ],
   "optional_host_permissions": [
     "https://*/*",

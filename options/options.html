@@ -12,13 +12,29 @@
       <img src="../icons/icon48.png" alt="">
       <div>
         <h1>NTU 双语字幕 · 设置</h1>
-        <p class="muted">为 NTULearn Media Gallery 视频提供 AI 预翻译双语字幕。API Key 仅保存在本机浏览器。</p>
+        <p class="muted">为 NTULearn Media Gallery 视频生成双语字幕。装好即可用基础模式；API Key 仅保存在本机浏览器。</p>
       </div>
     </header>
 
-    <!-- ===================== Provider ===================== -->
+    <!-- ===================== Engine ===================== -->
     <section class="card">
-      <h2>模型接口</h2>
+      <h2>翻译引擎</h2>
+      <div class="engines" id="engines" role="radiogroup">
+        <button type="button" class="engine" data-engine="basic" role="radio">
+          <span class="engine-title">基础模式 <span class="badge">免配置</span></span>
+          <span class="engine-desc">Google 翻译，装好即用、速度快。逐句机器翻译，专业术语偶尔不够准确。</span>
+        </button>
+        <button type="button" class="engine" data-engine="ai" role="radio">
+          <span class="engine-title">AI 精准模式 <span class="badge rec">推荐</span></span>
+          <span class="engine-desc">接入你自己的大模型（需要 API Key），结合上下文、课程背景和术语表，专业名词更准确。</span>
+        </button>
+      </div>
+
+      <div id="basicPanel">
+        <p class="muted small">无需任何设置。字幕文本会发送到 Google 翻译进行翻译；如需更准确的专业术语，可随时切换到 AI 精准模式。</p>
+      </div>
+
+      <div id="aiPanel">
       <div class="tabs" id="providerTabs">
         <button data-p="openai">OpenAI 格式</button>
         <button data-p="anthropic">Anthropic 格式</button>
@@ -61,6 +77,7 @@
           <textarea id="extraBody" rows="3" spellcheck="false"></textarea>
         </div>
       </details>
+      </div>
 
       <div class="testbar">
         <button id="test" type="button">测试连接</button>
@@ -96,6 +113,8 @@
           <input id="customLang" placeholder="例如：Cantonese (粤语)">
         </div>
       </div>
+      <p class="ai-only-note" id="aiOnlyNote">以下课程背景、术语表等选项仅在 <b>AI 精准模式</b> 下生效。</p>
+      <div id="aiOnlyOpts">
       <div class="field">
         <label for="courseContext">课程 / 学科背景 <span class="muted">（帮助模型选对专业术语）</span></label>
         <textarea id="courseContext" rows="2" placeholder="例如：EE4483 人工智能与数据挖掘，涉及机器学习、神经网络、聚类等内容"></textarea>
@@ -124,6 +143,7 @@
         </div>
         <p class="muted small">获取到字幕后会从当前播放位置开始优先翻译、向后预取整部视频；遇到 429 限流时可调低并发。</p>
       </details>
+      </div>
     </section>
 
     <!-- ===================== Display ===================== -->

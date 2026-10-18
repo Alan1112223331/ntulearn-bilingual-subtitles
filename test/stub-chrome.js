@@ -15,6 +15,7 @@
     },
     cacheIndex: {}
   };
+  if (params.get('engine') === 'basic') mem.settings.provider = 'google';
   const changeL = [];
   const msgL = [];
   const clone = (x) => (x === undefined ? x : JSON.parse(JSON.stringify(x)));

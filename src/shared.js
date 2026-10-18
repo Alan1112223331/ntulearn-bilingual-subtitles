@@ -2,9 +2,15 @@
 globalThis.NTUSUB = (() => {
   const PROMPT_VERSION = 1;
 
+  // 'google' = basic mode (free Google Translate, no configuration);
+  // 'openai' | 'anthropic' | 'gemini' = AI mode with a user-configured model.
+  const BASIC_PROVIDER = 'google';
+  const AI_PROVIDERS = ['openai', 'anthropic', 'gemini'];
+
   const DEFAULTS = {
     enabled: true,
-    provider: 'openai',
+    provider: BASIC_PROVIDER,
+    aiProvider: 'openai', // last AI format the user picked, restored when switching back to AI mode
     providers: {
       openai: {
         baseUrl: 'https://api.openai.com/v1',
@@ -55,6 +61,7 @@ globalThis.NTUSUB = (() => {
   };
 
   const PROVIDER_LABELS = {
+    google: '基础模式 · Google 翻译',
     openai: 'OpenAI 格式',
     anthropic: 'Anthropic 格式',
     gemini: 'Gemini 格式'
@@ -98,8 +105,25 @@ globalThis.NTUSUB = (() => {
     return merge(DEFAULTS, next);
   }
 
+  const isBasic = (s) => s.provider === BASIC_PROVIDER;
+
+  // Target-language names offered in the options page → Google Translate codes.
+  const GOOGLE_LANGS = {
+    '简体中文': 'zh-CN', '繁體中文': 'zh-TW', '日本語': 'ja', '한국어': 'ko',
+    'Bahasa Melayu': 'ms', 'Bahasa Indonesia': 'id', 'Tiếng Việt': 'vi', 'ภาษาไทย': 'th',
+    'हिन्दी': 'hi', 'Español': 'es', 'Français': 'fr', 'Deutsch': 'de', 'Русский': 'ru'
+  };
+
+  // Returns a Google language code, or '' when basic mode cannot handle the target.
+  function googleLang(target) {
+    const t = String(target || '').trim();
+    if (GOOGLE_LANGS[t]) return GOOGLE_LANGS[t];
+    return /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(t) ? t : '';
+  }
+
   // Anything that changes translation output must be part of the cache signature.
   function sigOf(s) {
+    if (isBasic(s)) return hash([PROMPT_VERSION, s.provider, s.targetLang].join('\u0001'));
     const cfg = s.providers[s.provider] || {};
     return hash([
       PROMPT_VERSION, s.provider, cfg.model, s.targetLang,
@@ -107,5 +131,8 @@ globalThis.NTUSUB = (() => {
     ].join('\u0001'));
   }
 
-  return { PROMPT_VERSION, DEFAULTS, PROVIDER_LABELS, merge, hash, getSettings, saveSettings, sigOf };
+  return {
+    PROMPT_VERSION, BASIC_PROVIDER, AI_PROVIDERS, DEFAULTS, PROVIDER_LABELS,
+    merge, hash, getSettings, saveSettings, sigOf, isBasic, googleLang
+  };
 })();

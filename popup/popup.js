@@ -10,8 +10,12 @@ function save(patch) {
 function fillUI() {
   const d = settings.display;
   $('#enabled').checked = settings.enabled;
-  const cfg = settings.providers[settings.provider];
-  $('#model').textContent = `${N.PROVIDER_LABELS[settings.provider]} · ${cfg.model || '未设置模型'} → ${settings.targetLang}`;
+  const basic = N.isBasic(settings);
+  const cfg = settings.providers[settings.provider] || {};
+  $('#model').textContent = basic
+    ? `${N.PROVIDER_LABELS[settings.provider]} → ${settings.targetLang}`
+    : `AI · ${N.PROVIDER_LABELS[settings.provider]} · ${cfg.model || '未设置模型'} → ${settings.targetLang}`;
+  $('#upgrade').hidden = !basic;
   document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('on', b.dataset.v === d.mode));
   $('#fontScale').value = d.fontScale;
   $('#fontScaleOut').textContent = Math.round(d.fontScale * 100) + '%';
@@ -95,6 +99,7 @@ async function init() {
   $('#transTop').addEventListener('change', (e) => save({ display: { order: e.target.checked ? 'trans-top' : 'orig-top' } }));
   $('#hideNative').addEventListener('change', (e) => save({ display: { hideNative: e.target.checked } }));
   $('#options').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  $('#upgrade').addEventListener('click', () => chrome.runtime.openOptionsPage());
 
   $('#retranslate').addEventListener('click', async () => {
     try { await chrome.tabs.sendMessage(tabId, { type: 'ntusub-retranslate' }); } catch (e) { /* ignore */ }

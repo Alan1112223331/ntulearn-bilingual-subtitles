@@ -2,11 +2,11 @@
 
 <img src="icons/icon128.png" width="88" alt="logo">
 
-# NTULearn 双语字幕 AI 翻译
+# NTULearn 双语字幕
 
-**为 NTULearn Media Gallery（Kaltura）课程视频生成 AI 大模型翻译的双语字幕**
+**为 NTULearn Media Gallery（Kaltura）课程视频生成双语字幕**
 
-专业术语精准 · 整片预翻译无延迟 · OpenAI / Anthropic / Gemini 任意自定义接口
+装好即用（免配置）· 可接入大模型精准翻译专业术语 · 整片预翻译无延迟
 
 [![Release](https://img.shields.io/github/v/release/Alan1112223331/ntulearn-bilingual-subtitles?color=c8102e)](https://github.com/Alan1112223331/ntulearn-bilingual-subtitles/releases/latest)
 ![Manifest V3](https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4)
@@ -22,9 +22,11 @@
 
 ## ✨ 功能
 
-- **AI 精准翻译专业术语**：基于视频自带的英文字幕，调用你配置的大模型翻译；可填写 *课程/学科背景* 和 *术语表*，提示词针对语音识别字幕（断句、识别错误）专门优化
-- **无延迟**：拿到字幕后立即从当前播放位置开始并发预翻译**整部视频**；拖动进度条时自动优先翻译新位置；结果按视频缓存在本地，重复观看即时显示、不再消耗 API
-- **三种接口格式，完全自定义**：OpenAI Chat Completions、Anthropic Messages、Gemini generateContent，Base URL / API Key / 模型名均可自定义，兼容 DeepSeek、通义千问、OpenRouter、one-api / new-api 等中转
+- **两种翻译引擎，按需选择**
+  - **基础模式（默认，免配置）**：使用 Google 翻译，安装后打开视频就有双语字幕，不需要任何 API Key
+  - **AI 精准模式（推荐）**：接入你自己的大模型，结合上下文、*课程背景* 和 *术语表* 翻译，提示词针对语音识别字幕（断句、识别错误）专门优化，专业名词明显更准确
+- **无延迟**：拿到字幕后立即从当前播放位置开始并发预翻译**整部视频**；拖动进度条时自动优先翻译新位置；结果按视频缓存在本地，重复观看即时显示
+- **AI 接口完全自定义**：OpenAI Chat Completions、Anthropic Messages、Gemini generateContent 三种格式，Base URL / API Key / 模型名均可自定义，兼容 DeepSeek、通义千问、OpenRouter、one-api / new-api 等中转
 - **清晰的双语显示**：自绘字幕层随视频逐帧同步，字号随播放器尺寸自适应；支持全屏、鼠标拖动调整位置、隐藏播放器原字幕；双语 / 仅译文 / 仅原文三种模式
 - **一键导出双语 SRT**，方便复习
 - 快捷键：`Alt+Shift+S` 开关字幕，`Alt+Shift+M` 切换显示模式
@@ -41,15 +43,27 @@
 1. 到 [Releases](https://github.com/Alan1112223331/ntulearn-bilingual-subtitles/releases/latest) 下载 `ntulearn-bilingual-subtitles-v*.zip` 并**解压**（或直接 `git clone` 本仓库）
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），打开右上角 **开发者模式**
 3. 点击 **加载已解压的扩展程序**，选择解压出的文件夹（里面有 `manifest.json`）
-4. 首次安装会自动打开设置页
+4. 完成！打开任意 Media Gallery 视频即可看到双语字幕（默认基础模式，无需配置）
 
 > 需要 Chrome / Edge 111 及以上。更新时下载新版本覆盖文件夹，再在扩展页点一下刷新按钮即可。
 
-## ⚙️ 配置
+## ⚙️ 翻译引擎
 
-<img src="docs/images/options.png" alt="设置页" width="620" align="right">
+<img src="docs/images/options.png" alt="设置页" width="560" align="right">
 
-在设置页 **模型接口** 中选择格式并填写：
+点击扩展图标 → **设置**，在 **翻译引擎** 里选择：
+
+| | 基础模式 | AI 精准模式 |
+| --- | --- | --- |
+| 配置 | 无需配置 | 需要 API Key |
+| 费用 | 免费 | 取决于你用的模型 |
+| 专业术语 | 一般，偶尔不准 | 准确，支持课程背景与术语表 |
+| 上下文理解 | 逐句翻译 | 结合前后文，能修正识别错误 |
+| 速度 | 很快（一节 3 小时的课十几秒译完） | 视模型而定，正在看的部分优先 |
+
+### AI 精准模式配置
+
+选择接口格式并填写：
 
 | 格式 | Base URL 示例 | 实际请求地址 |
 | --- | --- | --- |
@@ -61,11 +75,7 @@
 - **测试连接**：翻译一段示例字幕，验证接口和输出格式
 - 保存时浏览器会请求该接口域名的访问权限，请点 **允许**
 - **高级参数**：Temperature（推理模型请留空）、额外请求头、额外请求体（JSON，深度合并进请求，例如 `{"reasoning_effort":"low"}`）
-
-**建议**：
-
-- 选速度快的非推理模型，或把推理强度调低，整片预翻译更快
-- 填写 **课程/学科背景**（如 “EE6406 集成学习”）和 **术语表**（每行 `英文 = 译文`），专业名词更准确
+- 建议选速度快的非推理模型；填写 **课程/学科背景**（如 “EE6406 集成学习”）和 **术语表**（每行 `英文 = 译文`），专业名词更准确
 
 <br clear="right">
 
@@ -85,7 +95,7 @@ NTULearn (Blackboard Ultra)
    └─ Kaltura PlayKit 播放器              ← 扩展在这一层工作
       ├─ inject.js   页面主环境：监听播放器的 fetch / XHR，截获字幕
       └─ content.js  隔离环境：解析字幕 → 调度翻译 → 绘制双语字幕层
-            └─ background.js  调用大模型 API（Key 不暴露给网页）
+            └─ background.js  调用 Google 翻译（基础模式）或大模型 API（AI 模式，Key 不暴露给网页）
 ```
 
 **字幕获取**（按优先级）：
@@ -95,7 +105,7 @@ NTULearn (Blackboard Ultra)
 3. `<video>` 的 `textTracks`
 4. 兜底：读取播放器渲染的字幕文字逐句实时翻译（约 1 秒延迟）
 
-**翻译调度**：每批 30 条（观众正在看的那批只取 8 条，尽快返回），附带前后各 4 条上下文，默认 3 并发；失败自动重试退避，鉴权等致命错误会暂停并提示。
+**翻译调度**：基础模式每批最多 80 条；AI 模式每批 30 条（观众正在看的那批只取 8 条，尽快返回），附带前后各 4 条上下文，默认 3 并发；失败自动重试退避，鉴权等致命错误会暂停并提示。
 
 ## 🗂️ 目录结构
 
@@ -133,12 +143,13 @@ python -m http.server 8765
 ## 🔒 隐私
 
 - API Key 与设置只保存在本机 `chrome.storage.local`，不会同步、不会上传
-- 只有字幕文本（以及页面标题作为翻译上下文）会发送给**你自己配置的**模型接口
+- 基础模式：字幕文本会发送到 Google 翻译（translate.googleapis.com）
+- AI 模式：字幕文本（以及页面标题作为翻译上下文）只会发送给**你自己配置的**模型接口
 - 扩展不收集任何数据，没有任何统计或第三方服务
 
 ## ⚠️ 免责声明
 
-本项目为个人开源工具，与南洋理工大学（NTU）、Kaltura、Blackboard 及各模型服务商均无关联。课程视频与字幕的版权归其所有者，请仅用于个人学习。
+本项目为个人开源工具，与南洋理工大学（NTU）、Kaltura、Blackboard、Google 及各模型服务商均无关联。基础模式使用的是 Google 翻译的公开免费接口，不保证长期可用；若失效请切换到 AI 精准模式。课程视频与字幕的版权归其所有者，请仅用于个人学习。
 
 ## 📄 License
 

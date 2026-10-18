@@ -15,12 +15,29 @@ const PROVIDER_FIELDS = ['baseUrl', 'apiKey', 'model', 'temperature', 'extraHead
 const PRESET_LANGS = Array.from(document.querySelectorAll('#targetLang option')).map((o) => o.value).filter((v) => v !== '__custom');
 
 let draft = null;
-let cur = 'openai';
+let cur = 'openai'; // selected AI format tab
+let engine = 'basic'; // 'basic' (Google, no config) | 'ai'
 let dirty = false;
 
 function markDirty() {
   dirty = true;
   $('#saveMsg').textContent = '有未保存的更改';
+}
+
+// The provider id the current form represents.
+const activeProvider = () => (engine === 'basic' ? N.BASIC_PROVIDER : cur);
+
+function showEngine() {
+  document.querySelectorAll('#engines .engine').forEach((b) => {
+    const on = b.dataset.engine === engine;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+  $('#basicPanel').hidden = engine !== 'basic';
+  $('#aiPanel').hidden = engine !== 'ai';
+  $('#aiOnlyNote').hidden = engine !== 'basic';
+  $('#aiOnlyOpts').classList.toggle('dim', engine === 'basic');
+  $('#testResult').innerHTML = '';
 }
 
 // ------------------------------------------------------------- provider tab
@@ -43,6 +60,7 @@ function fillProviderForm() {
 // ------------------------------------------------------------------ general
 function fillForm() {
   fillProviderForm();
+  showEngine();
   const lang = draft.targetLang;
   if (PRESET_LANGS.includes(lang)) {
     $('#targetLang').value = lang;
@@ -70,7 +88,8 @@ function fillForm() {
 
 function readForm() {
   readProviderForm();
-  draft.provider = cur;
+  draft.provider = activeProvider();
+  draft.aiProvider = cur;
   const sel = $('#targetLang').value;
   draft.targetLang = sel === '__custom' ? ($('#customLang').value.trim() || '简体中文') : sel;
   draft.courseContext = $('#courseContext').value;
@@ -134,9 +153,18 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 // --------------------------------------------------------------------- init
 async function init() {
   draft = structuredClone(await N.getSettings());
-  cur = draft.provider;
+  engine = N.isBasic(draft) ? 'basic' : 'ai';
+  cur = N.AI_PROVIDERS.includes(draft.provider) ? draft.provider
+    : (N.AI_PROVIDERS.includes(draft.aiProvider) ? draft.aiProvider : 'openai');
   fillForm();
   refreshCacheStats();
+
+  document.querySelectorAll('#engines .engine').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.engine === engine) return;
+    engine = b.dataset.engine;
+    showEngine();
+    markDirty();
+  }));
 
   document.querySelectorAll('#providerTabs button').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.p === cur) return;
@@ -183,21 +211,23 @@ async function init() {
   });
 
   $('#test').addEventListener('click', async () => {
+    const basic = engine === 'basic';
     const cfg = currentCfg();
-    const perm = requestOrigin(cfg.baseUrl);
+    const perm = basic ? Promise.resolve(true) : requestOrigin(cfg.baseUrl);
     const btn = $('#test');
     btn.disabled = true;
-    $('#testResult').innerHTML = '<span class="muted">正在请求模型…</span>';
+    $('#testResult').innerHTML = `<span class="muted">${basic ? '正在请求 Google 翻译…' : '正在请求模型…'}</span>`;
     await perm;
     readForm();
     try {
       const settingsDraft = structuredClone(draft);
       settingsDraft.providers[cur] = cfg;
-      const res = await chrome.runtime.sendMessage({ type: 'ntusub-test', provider: cur, settings: settingsDraft });
+      const res = await chrome.runtime.sendMessage({ type: 'ntusub-test', provider: activeProvider(), settings: settingsDraft });
       if (!res.ok) throw new Error(res.error);
       const ok = res.lines.every((l) => l.tr);
+      const okText = basic ? '翻译正常' : '连接成功';
       $('#testResult').innerHTML =
-        `<span class="${ok ? 'ok' : 'err'}">${ok ? '连接成功' : '已连接，但输出解析失败'}</span> <span class="muted">· ${res.ms} ms</span>` +
+        `<span class="${ok ? 'ok' : 'err'}">${ok ? okText : '已连接，但输出解析失败'}</span> <span class="muted">· ${res.ms} ms</span>` +
         res.lines.map((l) => `<div class="pair">${esc(l.tr || '（无）')}<div class="muted small">${esc(l.src)}</div></div>`).join('') +
         (res.raw ? `<div class="muted small">原始输出：${esc(res.raw)}</div>` : '');
     } catch (e) {
@@ -209,7 +239,7 @@ async function init() {
 
   $('#save').addEventListener('click', async () => {
     const cfg = currentCfg();
-    const perm = requestOrigin(cfg.baseUrl);
+    const perm = engine === 'basic' ? Promise.resolve(true) : requestOrigin(cfg.baseUrl);
     readForm();
     for (const [name, v] of [['额外请求头', draft.providers[cur].extraHeaders], ['额外请求体', draft.providers[cur].extraBody]]) {
       if (v && v.trim()) {

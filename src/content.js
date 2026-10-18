@@ -376,6 +376,7 @@
   }
 
   function hasApi() {
+    if (N.isBasic(settings)) return true;
     const cfg = settings.providers[settings.provider];
     return cfg && cfg.baseUrl && cfg.model;
   }
@@ -387,7 +388,8 @@
     if (Date.now() < S.pauseUntil) return;
     const cues = t.cues;
     const conc = clamp(+settings.concurrency || 3, 1, 10);
-    const bs = clamp(+settings.batchSize || 30, 5, 120);
+    // Basic mode has no prompt overhead and answers fast, so it takes much larger batches.
+    const bs = N.isBasic(settings) ? 80 : clamp(+settings.batchSize || 30, 5, 120);
     const cur = currentIndex(cues);
     while (S.running < conc) {
       let start = -1;
@@ -676,7 +678,7 @@
       if (S.error && (S.halted || S.errStreak > 0)) { text = '翻译出错：' + S.error; err = true; }
       else if (S.active && S.cacheLoaded) {
         const { total, done } = progress();
-        if (done < total && (S.running > 0 || Date.now() < S.pauseUntil)) text = `AI 翻译中 ${Math.floor((done / total) * 100)}%`;
+        if (done < total && (S.running > 0 || Date.now() < S.pauseUntil)) text = `${N.isBasic(settings) ? '' : 'AI '}翻译中 ${Math.floor((done / total) * 100)}%`;
       }
     }
     S.ov.status.textContent = text;

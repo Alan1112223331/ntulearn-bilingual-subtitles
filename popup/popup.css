@@ -53,6 +53,17 @@ section { margin-bottom: 12px; }
 .err { color: var(--err); margin: 6px 0 0; font-size: 12px; word-break: break-word; }
 .err:empty { display: none; }
 
+.upgrade {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%;
+  margin: -4px 0 12px; padding: 8px 12px; border-radius: 10px; cursor: pointer;
+  font: inherit; font-size: 12px; text-align: left;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft); color: var(--fg);
+}
+.upgrade b { color: var(--accent); white-space: nowrap; }
+.upgrade:hover { border-style: solid; }
+.upgrade[hidden] { display: none; }
+
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: transparent; color: var(--fg); padding: 7px 0; cursor: pointer; font: inherit; }
 .seg button + button { border-left: 1px solid var(--line); }
