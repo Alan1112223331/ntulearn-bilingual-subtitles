@@ -71,7 +71,7 @@
     Object.defineProperty(v, 'duration', { get: () => 1200 });
     setTimeout(() => {
       const x = new XMLHttpRequest();
-      x.open('GET', 'fixtures/caption_captionasset/captionAssetId/0_test/segmentDuration/300/version/2/segmentIndex/1.vtt');
+      x.open('GET', 'fixtures/captionAssetId/0_test/segmentDuration/300/segmentIndex/1.vtt');
       x.send();
     }, 500);
   } else {
