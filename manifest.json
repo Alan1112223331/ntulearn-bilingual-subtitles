@@ -1,0 +1,83 @@
+{
+  "manifest_version": 3,
+  "name": "NTULearn 双语字幕 AI 翻译",
+  "short_name": "NTU 双语字幕",
+  "version": "1.0.0",
+  "description": "为 NTULearn Media Gallery (Kaltura) 视频提供 AI 大模型预翻译的双语字幕，支持 OpenAI / Anthropic / Gemini 格式自定义接口。",
+  "author": "Alan_m-12",
+  "homepage_url": "https://github.com/Alan1112223331/ntulearn-bilingual-subtitles",
+  "minimum_chrome_version": "111",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "NTU 双语字幕",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "https://*.kaltura.com/*",
+    "https://*.ntu.edu.sg/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.kaltura.com/*",
+        "https://*.ntu.edu.sg/*"
+      ],
+      "js": [
+        "src/inject.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_origin_as_fallback": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://*.kaltura.com/*",
+        "https://*.ntu.edu.sg/*"
+      ],
+      "js": [
+        "src/shared.js",
+        "src/parsers.js",
+        "src/content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_origin_as_fallback": true
+    }
+  ],
+  "commands": {
+    "toggle-subtitles": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "开启 / 关闭双语字幕"
+    },
+    "cycle-mode": {
+      "suggested_key": {
+        "default": "Alt+Shift+M"
+      },
+      "description": "切换显示模式（双语 / 仅译文 / 仅原文）"
+    }
+  }
+}

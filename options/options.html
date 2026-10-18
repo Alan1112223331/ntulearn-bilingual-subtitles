@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NTU 双语字幕 · 设置</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header class="top">
+      <img src="../icons/icon48.png" alt="">
+      <div>
+        <h1>NTU 双语字幕 · 设置</h1>
+        <p class="muted">为 NTULearn Media Gallery 视频提供 AI 预翻译双语字幕。API Key 仅保存在本机浏览器。</p>
+      </div>
+    </header>
+
+    <!-- ===================== Provider ===================== -->
+    <section class="card">
+      <h2>模型接口</h2>
+      <div class="tabs" id="providerTabs">
+        <button data-p="openai">OpenAI 格式</button>
+        <button data-p="anthropic">Anthropic 格式</button>
+        <button data-p="gemini">Gemini 格式</button>
+      </div>
+      <p class="muted small" id="providerHint"></p>
+
+      <div class="field">
+        <label for="baseUrl">接口地址 Base URL</label>
+        <input id="baseUrl" type="url" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="apiKey">API Key</label>
+        <div class="inline">
+          <input id="apiKey" type="password" spellcheck="false" autocomplete="off">
+          <button id="toggleKey" class="ghost" type="button">显示</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="model">模型名称</label>
+        <div class="inline">
+          <input id="model" list="modelList" spellcheck="false" autocomplete="off" placeholder="可手动输入任意模型名">
+          <button id="fetchModels" class="ghost" type="button">获取模型列表</button>
+        </div>
+        <datalist id="modelList"></datalist>
+      </div>
+
+      <details>
+        <summary>高级参数</summary>
+        <div class="field">
+          <label for="temperature">Temperature <span class="muted">（留空 = 不发送，推理模型请留空）</span></label>
+          <input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="例如 0.3">
+        </div>
+        <div class="field">
+          <label for="extraHeaders">额外请求头 (JSON)</label>
+          <textarea id="extraHeaders" rows="2" spellcheck="false" placeholder='{"X-Custom": "value"}'></textarea>
+        </div>
+        <div class="field">
+          <label for="extraBody">额外请求体 (JSON，会深度合并进请求)</label>
+          <textarea id="extraBody" rows="3" spellcheck="false"></textarea>
+        </div>
+      </details>
+
+      <div class="testbar">
+        <button id="test" type="button">测试连接</button>
+        <div id="testResult" class="test-result"></div>
+      </div>
+    </section>
+
+    <!-- ===================== Translation ===================== -->
+    <section class="card">
+      <h2>翻译</h2>
+      <div class="cols">
+        <div class="field">
+          <label for="targetLang">目标语言</label>
+          <select id="targetLang">
+            <option>简体中文</option>
+            <option>繁體中文</option>
+            <option>日本語</option>
+            <option>한국어</option>
+            <option>Bahasa Melayu</option>
+            <option>Bahasa Indonesia</option>
+            <option>Tiếng Việt</option>
+            <option>ภาษาไทย</option>
+            <option>हिन्दी</option>
+            <option>Español</option>
+            <option>Français</option>
+            <option>Deutsch</option>
+            <option>Русский</option>
+            <option value="__custom">自定义…</option>
+          </select>
+        </div>
+        <div class="field" id="customLangField" hidden>
+          <label for="customLang">自定义目标语言</label>
+          <input id="customLang" placeholder="例如：Cantonese (粤语)">
+        </div>
+      </div>
+      <div class="field">
+        <label for="courseContext">课程 / 学科背景 <span class="muted">（帮助模型选对专业术语）</span></label>
+        <textarea id="courseContext" rows="2" placeholder="例如：EE4483 人工智能与数据挖掘，涉及机器学习、神经网络、聚类等内容"></textarea>
+      </div>
+      <div class="field">
+        <label for="glossary">术语表 <span class="muted">（每行一条，格式：英文 = 译文）</span></label>
+        <textarea id="glossary" rows="4" spellcheck="false" placeholder="overfitting = 过拟合&#10;eigenvalue = 特征值&#10;Op-amp = 运算放大器"></textarea>
+      </div>
+      <label class="check"><input type="checkbox" id="keepTerms"> 专业术语后括注英文原词（如：反向传播 (backpropagation)）</label>
+
+      <details>
+        <summary>批量与并发</summary>
+        <div class="cols three">
+          <div class="field">
+            <label for="batchSize">每批字幕条数</label>
+            <input id="batchSize" type="number" min="5" max="120">
+          </div>
+          <div class="field">
+            <label for="concurrency">并发请求数</label>
+            <input id="concurrency" type="number" min="1" max="10">
+          </div>
+          <div class="field">
+            <label for="contextLines">上下文条数</label>
+            <input id="contextLines" type="number" min="0" max="10">
+          </div>
+        </div>
+        <p class="muted small">获取到字幕后会从当前播放位置开始优先翻译、向后预取整部视频；遇到 429 限流时可调低并发。</p>
+      </details>
+    </section>
+
+    <!-- ===================== Display ===================== -->
+    <section class="card">
+      <h2>字幕样式</h2>
+      <div class="preview" id="preview">
+        <div class="pv-box" id="pvBox">
+          <div class="pv-tr">今天我们将用链式法则推导反向传播算法</div>
+          <div class="pv-or">Today we'll derive the back propagation algorithm using the chain rule</div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="field">
+          <label for="mode">显示模式</label>
+          <select id="mode">
+            <option value="bilingual">双语</option>
+            <option value="translation">仅译文</option>
+            <option value="original">仅原文</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="order">排列顺序</label>
+          <select id="order">
+            <option value="trans-top">译文在上，原文在下</option>
+            <option value="orig-top">原文在上，译文在下</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fontScale">字号缩放 <output id="fontScaleOut"></output></label>
+          <input id="fontScale" type="range" min="0.6" max="2" step="0.05">
+        </div>
+        <div class="field">
+          <label for="origScale">原文相对大小 <output id="origScaleOut"></output></label>
+          <input id="origScale" type="range" min="0.5" max="1.2" step="0.02">
+        </div>
+        <div class="field">
+          <label for="bgOpacity">背景不透明度 <output id="bgOpacityOut"></output></label>
+          <input id="bgOpacity" type="range" min="0" max="1" step="0.05">
+        </div>
+        <div class="field">
+          <label for="bottom">距底部距离 <output id="bottomOut"></output></label>
+          <input id="bottom" type="range" min="0" max="60" step="0.5">
+        </div>
+        <div class="field">
+          <label for="transColor">译文颜色</label>
+          <input id="transColor" type="color">
+        </div>
+        <div class="field">
+          <label for="origColor">原文颜色</label>
+          <input id="origColor" type="color">
+        </div>
+        <div class="field">
+          <label for="fontWeight">译文字重</label>
+          <select id="fontWeight">
+            <option value="400">常规</option>
+            <option value="500">中等</option>
+            <option value="600">半粗</option>
+            <option value="700">粗体</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="offsetMs">时间偏移 (毫秒，正数=字幕提前)</label>
+          <input id="offsetMs" type="number" step="100">
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" id="hideNative"> 隐藏播放器自带字幕（避免重复显示）</label>
+      <label class="check"><input type="checkbox" id="showStatus"> 在视频左上角显示翻译进度 / 错误提示</label>
+    </section>
+
+    <!-- ===================== Cache ===================== -->
+    <section class="card">
+      <h2>缓存</h2>
+      <p class="muted">翻译结果按视频缓存在本地，再次观看时立即显示、不再消耗 API。更换模型、目标语言、术语表或课程背景后会自动重新翻译。</p>
+      <div class="inline">
+        <span id="cacheStats" class="muted"></span>
+        <button id="clearCache" class="ghost" type="button">清空翻译缓存</button>
+      </div>
+    </section>
+
+    <div class="savebar">
+      <span id="saveMsg" class="muted"></span>
+      <button id="save" class="primary" type="button">保存设置</button>
+    </div>
+  </main>
+
+  <script src="../src/shared.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

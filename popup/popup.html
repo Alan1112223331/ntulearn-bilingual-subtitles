@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>NTU 双语字幕</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img src="../icons/icon32.png" alt="">
+      <div>
+        <h1>NTU 双语字幕</h1>
+        <p id="model" class="muted"></p>
+      </div>
+    </div>
+    <label class="switch" title="开启 / 关闭 (Alt+Shift+S)">
+      <input type="checkbox" id="enabled">
+      <span></span>
+    </label>
+  </header>
+
+  <section class="status" id="status">
+    <div class="status-line"><span class="dot" id="dot"></span><span id="statusText">检测中…</span></div>
+    <div class="bar"><div id="bar"></div></div>
+    <p class="err" id="err"></p>
+  </section>
+
+  <section>
+    <div class="label">显示模式 <span class="muted">Alt+Shift+M</span></div>
+    <div class="seg" id="mode">
+      <button data-v="bilingual">双语</button>
+      <button data-v="translation">仅译文</button>
+      <button data-v="original">仅原文</button>
+    </div>
+  </section>
+
+  <section class="grid">
+    <label class="row">
+      <span>字号</span>
+      <input type="range" id="fontScale" min="0.6" max="2" step="0.05">
+      <output id="fontScaleOut"></output>
+    </label>
+    <label class="row">
+      <span>背景</span>
+      <input type="range" id="bgOpacity" min="0" max="1" step="0.05">
+      <output id="bgOpacityOut"></output>
+    </label>
+    <label class="row check">
+      <input type="checkbox" id="transTop"><span>译文在上方</span>
+    </label>
+    <label class="row check">
+      <input type="checkbox" id="hideNative"><span>隐藏播放器原字幕</span>
+    </label>
+  </section>
+
+  <section class="actions">
+    <button id="export">导出双语 SRT</button>
+    <button id="retranslate">重新翻译</button>
+    <button id="options" class="primary">设置</button>
+  </section>
+
+  <p class="hint muted">提示：字幕框可直接拖动调整上下位置。</p>
+
+  <script src="../src/shared.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+dist/
+.claude/
+*.pem
+*.crx
+.DS_Store
+Thumbs.db

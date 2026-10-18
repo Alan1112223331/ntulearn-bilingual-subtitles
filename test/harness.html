@@ -1,0 +1,84 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>harness</title>
+<style>
+  body { background:#222; color:#ddd; font:13px system-ui; margin:16px; }
+  .playkit-player { position:relative; width:800px; height:450px; background:#000; }
+  .playkit-engine, video { width:100%; height:100%; display:block; }
+  .playkit-subtitles { position:absolute; bottom:20px; left:0; right:0; text-align:center; color:yellow; font-size:20px; }
+  #log { white-space:pre; margin-top:10px; max-height:200px; overflow:auto; }
+</style>
+<script>
+  // ---- minimal chrome.* stub (in-memory storage, fake translator) ----
+  const mem = {}; const changeL = []; const msgL = [];
+  window.__reqs = [];
+  window.chrome = {
+    runtime: {
+      id: 'test',
+      sendMessage(msg) {
+        if (msg.type === 'ntusub-translate') {
+          window.__reqs.push(msg.lines.length);
+          return new Promise(r => setTimeout(() => {
+            const t = {}; msg.lines.forEach(l => t[l.id] = '【译】' + l.text.slice(0, 20));
+            r({ ok: true, translations: t });
+          }, 400));
+        }
+        return Promise.resolve({ ok: true });
+      },
+      onMessage: { addListener(f) { msgL.push(f); } }
+    },
+    storage: {
+      local: {
+        async get(k) { if (k == null) return { ...mem }; const ks = Array.isArray(k) ? k : [k]; const o = {}; ks.forEach(x => { if (x in mem) o[x] = JSON.parse(JSON.stringify(mem[x])); }); return o; },
+        async set(o) { const ch = {}; for (const k in o) { ch[k] = { oldValue: mem[k], newValue: o[k] }; mem[k] = JSON.parse(JSON.stringify(o[k])); } changeL.forEach(f => f(ch, 'local')); },
+        async remove(k) { (Array.isArray(k) ? k : [k]).forEach(x => delete mem[x]); }
+      },
+      onChanged: { addListener(f) { changeL.push(f); } }
+    }
+  };
+  window.__popup = (msg) => new Promise(res => { for (const f of msgL) f(msg, {}, res); setTimeout(() => res(undefined), 50); });
+  // fake API key so pump runs
+  mem.settings = { providers: { openai: { apiKey: 'k' } }, batchSize: 10, concurrency: 2 };
+</script>
+<script src="../src/inject.js"></script>
+<script src="../src/shared.js"></script>
+<script src="../src/parsers.js"></script>
+<script src="../src/content.js"></script>
+</head>
+<body>
+<div class="playkit-player">
+  <div class="playkit-engine"><video id="v"></video></div>
+  <div class="playkit-subtitles">NATIVE CAPTION (should be hidden)</div>
+</div>
+<div id="log"></div>
+<script>
+  // Fake clock on the video element so playback can be simulated without media.
+  const v = document.getElementById('v');
+  let t0 = null, paused = true, base = 0;
+  Object.defineProperty(v, 'currentTime', { get: () => paused ? base : base + (performance.now() - t0) / 1000, set: (x) => { base = x; t0 = performance.now(); v.dispatchEvent(new Event('seeking')); v.dispatchEvent(new Event('seeked')); } });
+  Object.defineProperty(v, 'paused', { get: () => paused });
+  window.play = () => { base = v.currentTime; t0 = performance.now(); paused = false; v.dispatchEvent(new Event('play')); };
+  window.pause = () => { base = v.currentTime; paused = true; v.dispatchEvent(new Event('pause')); };
+
+  // Build a 200-cue WebVTT and "download" it like the Kaltura player would (XHR to a caption URL).
+  let vtt = 'WEBVTT\n\n';
+  const pad = (n) => String(n).padStart(2, '0');
+  for (let i = 0; i < 200; i++) {
+    const s = i * 2, e = s + 2;
+    vtt += `00:${pad(Math.floor(s / 60))}:${pad(s % 60)}.000 --> 00:${pad(Math.floor(e / 60))}:${pad(e % 60)}.000\nLine number ${i} about gradient descent and eigenvalues\n\n`;
+  }
+  if (location.search.includes('seg=1')) {
+    // Mimic NTU's Kaltura setup: segmented WebVTT, player only loads segment 1 (via XHR).
+    Object.defineProperty(v, 'duration', { get: () => 1200 });
+    setTimeout(() => {
+      const x = new XMLHttpRequest();
+      x.open('GET', 'fixtures/caption_captionasset/captionAssetId/0_test/segmentDuration/300/version/2/segmentIndex/1.vtt');
+      x.send();
+    }, 500);
+  } else {
+    setTimeout(() => {
+      // fetch with a data: URL (content-type text/vtt) stands in for a full caption file.
+      fetch('data:text/vtt;charset=utf-8,' + encodeURIComponent(vtt)).then(r => r.text());
+    }, 500);
+  }
+</script>
+</body></html>
