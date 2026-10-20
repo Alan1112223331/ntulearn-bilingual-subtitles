@@ -11,7 +11,14 @@ const BODY_PLACEHOLDER = {
   anthropic: '{"max_tokens": 8192}',
   gemini: '{"generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}}'
 };
-const PROVIDER_FIELDS = ['baseUrl', 'apiKey', 'model', 'temperature', 'extraHeaders', 'extraBody'];
+const MODEL_EXAMPLES = {
+  openai: 'gpt-4o-mini',
+  anthropic: 'claude-haiku-5-5',
+  gemini: 'gemini-2.5-flash'
+};
+// Models that cannot do chat translation (embeddings, rerankers, speech, images…).
+const NON_CHAT_MODEL = /embed|rerank|bge-|tts|whisper|voice|speech|audio|transcri|dall-e|image|imagen|moderation|sensevoice|cosyvoice|\bsd[-_]|stable-diffusion|flux/i;
+const PROVIDER_FIELDS =['baseUrl', 'apiKey', 'model', 'temperature', 'extraHeaders', 'extraBody'];
 const PRESET_LANGS = Array.from(document.querySelectorAll('#targetLang option')).map((o) => o.value).filter((v) => v !== '__custom');
 
 let draft = null;
@@ -53,9 +60,134 @@ function fillProviderForm() {
   $('#providerHint').textContent = HINTS[cur];
   $('#baseUrl').placeholder = N.DEFAULTS.providers[cur].baseUrl;
   $('#extraBody').placeholder = '例如 ' + BODY_PLACEHOLDER[cur];
-  $('#modelList').innerHTML = '';
+  $('#model').placeholder = `手动输入，或点「获取模型列表」选择（如 ${MODEL_EXAMPLES[cur]}）`;
+  modelPicker.setModels([]);
   $('#testResult').innerHTML = '';
 }
+
+// ------------------------------------------------------------- model picker
+// Text input with a themed dropdown. Opening it shows the full list; typing filters it.
+const modelPicker = (() => {
+  const combo = $('#modelCombo');
+  const input = $('#model');
+  const menu = $('#modelMenu');
+  let models = [];
+  let shown = [];
+  let active = -1;
+  let filter = '';
+
+  const isOpen = () => !menu.hidden;
+
+  function highlight(name) {
+    if (!filter) return esc(name);
+    const i = name.toLowerCase().indexOf(filter.toLowerCase());
+    if (i < 0) return esc(name);
+    return esc(name.slice(0, i)) + '<mark>' + esc(name.slice(i, i + filter.length)) + '</mark>' + esc(name.slice(i + filter.length));
+  }
+
+  function render() {
+    const q = filter.toLowerCase();
+    const match = models.filter((m) => !q || m.toLowerCase().includes(q));
+    const chat = match.filter((m) => !NON_CHAT_MODEL.test(m));
+    const other = match.filter((m) => NON_CHAT_MODEL.test(m));
+    shown = chat.concat(other);
+    if (active === null) active = filter ? 0 : Math.max(0, shown.indexOf(input.value)); // fresh open
+    if (active >= shown.length) active = shown.length - 1;
+    const item = (m, i, dim) =>
+      `<div class="combo-item${dim ? ' dim' : ''}${i === active ? ' active' : ''}" role="option" data-i="${i}"` +
+      ` aria-selected="${m === input.value}"><span class="check">${m === input.value ? '✓' : ''}</span>${highlight(m)}</div>`;
+    let html = `<div class="combo-head">${filter ? `匹配 ${match.length} / ${models.length} 个模型` : `共 ${models.length} 个模型 · 输入可筛选`}</div>`;
+    if (!shown.length) html += '<div class="combo-empty">没有匹配的模型，可直接使用输入的名称</div>';
+    html += chat.map((m, i) => item(m, i, false)).join('');
+    if (other.length) {
+      html += '<div class="combo-group">非对话模型（不适合翻译）</div>';
+      html += other.map((m, i) => item(m, chat.length + i, true)).join('');
+    }
+    menu.innerHTML = html;
+    // Keep the active item visible by scrolling the menu only (not the page).
+    const el = menu.querySelector('.combo-item.active');
+    if (el) {
+      const head = menu.querySelector('.combo-head').offsetHeight;
+      if (el.offsetTop - head < menu.scrollTop) menu.scrollTop = el.offsetTop - head - 4;
+      else if (el.offsetTop + el.offsetHeight > menu.scrollTop + menu.clientHeight) menu.scrollTop = el.offsetTop + el.offsetHeight - menu.clientHeight + 4;
+    }
+  }
+
+  function open(withFilter) {
+    if (!models.length) return false;
+    filter = withFilter ? input.value.trim() : '';
+    active = null; // resolved against the displayed order in render()
+    menu.hidden = false;
+    // Fit between the input and the fixed save bar; flip upwards when there is more room above.
+    const r = input.getBoundingClientRect();
+    const saveBar = $('.savebar').getBoundingClientRect().top;
+    const below = saveBar - r.bottom - 12;
+    const above = r.top - 12;
+    const up = below < 240 && above > below;
+    menu.classList.toggle('up', up);
+    menu.style.maxHeight = Math.max(140, Math.min(320, up ? above : below)) + 'px';
+    combo.classList.add('open');
+    input.setAttribute('aria-expanded', 'true');
+    render();
+    return true;
+  }
+
+  function close() {
+    menu.hidden = true;
+    combo.classList.remove('open');
+    input.setAttribute('aria-expanded', 'false');
+  }
+
+  function choose(i) {
+    const m = shown[i];
+    if (m == null) return;
+    input.value = m;
+    close();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  }
+
+  input.addEventListener('focus', () => { if (!isOpen()) open(false); });
+  input.addEventListener('click', () => { if (!isOpen()) open(false); });
+  input.addEventListener('input', (e) => {
+    if (!e.isTrusted) return; // value set by choose()
+    if (!isOpen()) open(true);
+    else { filter = input.value.trim(); active = null; render(); }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!isOpen()) { open(false); return; }
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      active = Math.max(0, Math.min(shown.length - 1, active + d));
+      render();
+    } else if (e.key === 'Enter' && isOpen() && active >= 0) {
+      e.preventDefault();
+      choose(active);
+    } else if (e.key === 'Escape' && isOpen()) {
+      e.preventDefault();
+      close();
+    } else if (e.key === 'Tab') {
+      close();
+    }
+  });
+  $('#modelToggle').addEventListener('click', () => {
+    if (isOpen()) { close(); return; }
+    if (!open(false)) $('#fetchModels').click();
+    else input.focus();
+  });
+  menu.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the input
+  menu.addEventListener('click', (e) => {
+    const el = e.target.closest('.combo-item');
+    if (el) choose(+el.dataset.i);
+  });
+  document.addEventListener('mousedown', (e) => { if (!combo.contains(e.target)) close(); });
+
+  return {
+    setModels(list) { models = list; if (!list.length) close(); },
+    open: () => open(false)
+  };
+})();
 
 // ------------------------------------------------------------------ general
 function fillForm() {
@@ -199,9 +331,12 @@ async function init() {
     try {
       const res = await chrome.runtime.sendMessage({ type: 'ntusub-models', provider: cur, cfg });
       if (!res.ok) throw new Error(res.error);
-      $('#modelList').innerHTML = res.models.map((m) => `<option value="${esc(m)}">`).join('');
-      $('#testResult').innerHTML = `<span class="ok">获取到 ${res.models.length} 个模型</span>，点击模型输入框即可选择。`;
+      modelPicker.setModels(res.models);
+      $('#testResult').innerHTML = res.models.length
+        ? `<span class="ok">获取到 ${res.models.length} 个模型</span>，已展开列表，可输入关键字筛选。`
+        : '<span class="err">接口没有返回任何模型</span>，可直接手动输入模型名。';
       $('#model').focus();
+      modelPicker.open();
     } catch (e) {
       $('#testResult').innerHTML = `<span class="err">获取模型列表失败：${esc(e.message)}</span><div class="muted small">部分代理不支持列出模型，可直接手动输入模型名。</div>`;
     } finally {

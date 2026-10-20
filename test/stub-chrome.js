@@ -31,6 +31,15 @@
           return { ok: true, translations: t };
         }
         if (msg.type === 'ntusub-cache-stats') return { ok: true, videos: 14, bytes: 3.6 * 1024 * 1024 };
+        if (msg.type === 'ntusub-models') {
+          await new Promise((r) => setTimeout(r, 300));
+          return { ok: true, models: [
+            'BAAI/bge-m3', 'BAAI/bge-reranker-v2-m3', 'ByteDance-Seed/Seed-OSS-36B-Instruct', 'FunAudioLLM/CosyVoice2-0.5B',
+            'FunAudioLLM/SenseVoiceSmall', 'Qwen/Qwen3-32B', 'Qwen/Qwen3-8B', 'deepseek-ai/DeepSeek-V3.2',
+            'claude-haiku-5-5', 'claude-sonnet-5-5', 'gemini-2.5-flash', 'gemini-claude-sonnet-4-6',
+            'gpt-4o-mini', 'gpt-4.1-mini', 'text-embedding-3-small', 'tts-1', 'whisper-1'
+          ].sort() };
+        }
         return { ok: true };
       },
       onMessage: { addListener: (f) => msgL.push(f) },

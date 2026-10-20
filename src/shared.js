@@ -15,7 +15,7 @@ globalThis.NTUSUB = (() => {
       openai: {
         baseUrl: 'https://api.openai.com/v1',
         apiKey: '',
-        model: 'gpt-4o-mini',
+        model: '',
         temperature: '',
         extraHeaders: '',
         extraBody: ''
@@ -23,7 +23,7 @@ globalThis.NTUSUB = (() => {
       anthropic: {
         baseUrl: 'https://api.anthropic.com',
         apiKey: '',
-        model: 'claude-haiku-5-5',
+        model: '',
         temperature: '',
         extraHeaders: '',
         extraBody: ''
@@ -31,7 +31,7 @@ globalThis.NTUSUB = (() => {
       gemini: {
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
         apiKey: '',
-        model: 'gemini-2.5-flash',
+        model: '',
         temperature: '',
         extraHeaders: '',
         extraBody: ''
