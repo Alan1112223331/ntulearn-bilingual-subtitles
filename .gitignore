@@ -4,3 +4,4 @@ dist/
 *.crx
 .DS_Store
 Thumbs.db
+_harness.html

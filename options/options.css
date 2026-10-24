@@ -157,3 +157,15 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 10px; user-select
   display: flex; justify-content: center; gap: 16px; align-items: center;
 }
 .savebar button { min-width: 140px; }
+
+/* Embedded in the side panel's 设置 tab */
+.embed main { padding: 12px 12px 84px; }
+.embed .top { display: none; }
+.embed .card { padding: 14px; border-radius: 12px; margin-bottom: 12px; }
+.embed h2 { font-size: 15px; margin-bottom: 10px; }
+.embed .engines { grid-template-columns: 1fr; }
+.embed .cols, .embed .cols.three { grid-template-columns: 1fr; }
+.embed .savebar { padding: 10px 12px; }
+.embed .savebar button { min-width: 0; flex: 1; }
+.embed .inline { flex-wrap: wrap; }
+.embed #fetchModels { flex: 1 0 auto; }

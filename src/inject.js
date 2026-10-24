@@ -16,7 +16,7 @@
 
   function post(type, data) {
     const msg = Object.assign({ [TAG]: 'inject', type }, data);
-    if (type === 'captions' || type === 'captionList') {
+    if (type === 'captions' || type === 'captionList' || type === 'segmentsDone') {
       buffer.push(msg);
       if (buffer.length > 30) buffer.shift();
     }
@@ -70,12 +70,16 @@
         try {
           const res = await window.fetch(u); // captured by the fetch hook above
           if (!res.ok && !dur) stop = true; // probing without a known duration: stop at the end
+          await res.text(); // wait for the body so "done" is not reported before the text
         } catch (e) {
           if (!dur) stop = true;
         }
       }
     };
     await Promise.all([worker(), worker(), worker()]);
+    await new Promise((r) => setTimeout(r, 500)); // let the hook post the last segments first
+    // Tells content.js the transcript is complete (the side panel waits for this before notes).
+    post('segmentsDone', { url, total });
   }
 
   function redact(url) {
@@ -101,9 +105,13 @@
         if (!prefetching.has(url)) console.info('[NTU双语字幕] 截获字幕文件', redact(url), text.length + ' 字符');
         post('captions', { url, text });
         prefetchSegments(url);
-      } else if (API_URL.test(url) && text.indexOf('KalturaCaptionAsset') !== -1) {
-        console.info('[NTU双语字幕] 截获字幕列表', redact(url));
-        post('captionList', { url, text, body: typeof body === 'string' ? body.slice(0, 200000) : '' });
+      } else if (API_URL.test(url)) {
+        if (text.indexOf('KalturaCaptionAsset') !== -1) {
+          console.info('[NTU双语字幕] 截获字幕列表', redact(url));
+          post('captionList', { url, text, body: typeof body === 'string' ? body.slice(0, 200000) : '' });
+        }
+        // Entry name / description give the side panel a real lecture title.
+        if (/"objectType"\s*:\s*"Kaltura\w*MediaEntry"/.test(text)) post('entryInfo', { text });
       }
     } catch (e) { /* ignore */ }
   }

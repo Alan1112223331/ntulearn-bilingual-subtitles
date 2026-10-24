@@ -1,14 +1,8 @@
-importScripts('shared.js');
+importScripts('shared.js', 'llm.js');
 
 const N = globalThis.NTUSUB;
-const OFFICIAL_HOSTS = ['api.openai.com', 'api.anthropic.com', 'generativelanguage.googleapis.com'];
-
-class ApiError extends Error {
-  constructor(message, fatal = false) {
-    super(message);
-    this.fatal = fatal;
-  }
-}
+const L = globalThis.NTUSUB_LLM;
+const { ApiError } = L;
 
 // ------------------------------------------------------------------ prompts
 function buildSystemPrompt(s, titles) {
@@ -62,10 +56,12 @@ function parseTranslations(raw, ids) {
   let obj = null;
   const a = s.indexOf('{'), b = s.lastIndexOf('}');
   const as = s.indexOf('['), bs = s.lastIndexOf(']');
-  if (as >= 0 && bs > as && (a < 0 || as < a)) {
-    try { obj = JSON.parse(s.slice(as, bs + 1)); } catch (e) { /* try object */ }
-  }
-  if (!obj && a >= 0 && b > a) { try { obj = JSON.parse(s.slice(a, b + 1)); } catch (e) { /* salvage below */ } }
+  const parse = (x) => {
+    try { return JSON.parse(x); } catch (e) { /* try repaired */ }
+    try { return JSON.parse(L.repairJson(x)); } catch (e) { return null; }
+  };
+  if (as >= 0 && bs > as && (a < 0 || as < a)) obj = parse(s.slice(as, bs + 1));
+  if (!obj && a >= 0 && b > a) obj = parse(s.slice(a, b + 1));
   if (Array.isArray(obj)) {
     fromArray(obj);
   } else if (obj && typeof obj === 'object') {
@@ -82,158 +78,6 @@ function parseTranslations(raw, ids) {
     }
   }
   return out;
-}
-
-// ---------------------------------------------------------------- providers
-const trimUrl = (u) => String(u || '').trim().replace(/\/+$/, '');
-
-function endpoint(provider, cfg, kind) {
-  const b = trimUrl(cfg.baseUrl);
-  if (provider === 'openai') {
-    const root = b.replace(/\/(chat\/completions|models)$/, '');
-    return kind === 'models' ? root + '/models' : root + '/chat/completions';
-  }
-  if (provider === 'anthropic') {
-    let root = b.replace(/\/(messages|models)$/, '');
-    if (!/\/v1$/.test(root)) root += '/v1';
-    return kind === 'models' ? root + '/models?limit=1000' : root + '/messages';
-  }
-  // gemini
-  let root = b.replace(/\/models(\/[^/]*)?$/, '');
-  if (!/\/v1(alpha|beta)?\d*$/.test(root)) root += '/v1beta';
-  if (kind === 'models') return root + '/models?pageSize=1000&key=' + encodeURIComponent(cfg.apiKey || '');
-  const model = String(cfg.model || '').replace(/^models\//, '');
-  return `${root}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(cfg.apiKey || '')}`;
-}
-
-function parseJsonField(v, name) {
-  if (!v || !String(v).trim()) return {};
-  try {
-    const o = JSON.parse(v);
-    if (o && typeof o === 'object' && !Array.isArray(o)) return o;
-  } catch (e) { /* fallthrough */ }
-  throw new ApiError(`${name} 不是合法的 JSON 对象`, true);
-}
-
-function headersFor(provider, cfg) {
-  const h = { 'Content-Type': 'application/json' };
-  if (provider === 'openai') {
-    if (cfg.apiKey) h.Authorization = 'Bearer ' + cfg.apiKey;
-  } else if (provider === 'anthropic') {
-    if (cfg.apiKey) h['x-api-key'] = cfg.apiKey;
-    h['anthropic-version'] = '2023-06-01';
-    h['anthropic-dangerous-direct-browser-access'] = 'true';
-  } else if (cfg.apiKey) {
-    h['x-goog-api-key'] = cfg.apiKey;
-  }
-  return Object.assign(h, parseJsonField(cfg.extraHeaders, '额外请求头'));
-}
-
-function checkKey(provider, cfg) {
-  if (!cfg.baseUrl) throw new ApiError('未填写接口地址 (Base URL)', true);
-  if (!cfg.model) throw new ApiError('未填写模型名称', true);
-  let host = '';
-  try { host = new URL(trimUrl(cfg.baseUrl)).host; } catch (e) { throw new ApiError('接口地址格式不正确', true); }
-  if (!cfg.apiKey && OFFICIAL_HOSTS.includes(host)) throw new ApiError('未填写 API Key，请在扩展设置中配置', true);
-}
-
-async function fetchWithRetry(url, init, attempts = 3) {
-  let lastErr;
-  for (let i = 0; i < attempts; i++) {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 120000);
-    try {
-      const res = await fetch(url, { ...init, signal: ctrl.signal });
-      if (res.ok) return res;
-      const text = await res.text().catch(() => '');
-      let detail = text.slice(0, 300);
-      try {
-        const j = JSON.parse(text);
-        const e = Array.isArray(j) ? j[0] && j[0].error : j.error;
-        detail = (e && (e.message || (typeof e === 'string' ? e : ''))) || j.message || detail;
-      } catch (e) { /* not JSON */ }
-      const retryable = res.status === 408 || res.status === 409 || res.status === 429 || res.status >= 500;
-      lastErr = new ApiError(`HTTP ${res.status}: ${detail}`, !retryable);
-      if (!retryable) throw lastErr;
-      const ra = parseFloat(res.headers.get('retry-after'));
-      await new Promise((r) => setTimeout(r, Number.isFinite(ra) ? Math.min(ra, 30) * 1000 : 1000 * 2 ** i));
-    } catch (e) {
-      if (e instanceof ApiError && e.fatal) throw e;
-      lastErr = e instanceof ApiError ? e : new ApiError(e.name === 'AbortError' ? '请求超时' : '网络错误：' + e.message);
-      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1000 * 2 ** i));
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw lastErr;
-}
-
-async function callModel(provider, cfg, system, user) {
-  checkKey(provider, cfg);
-  const temp = cfg.temperature === '' || cfg.temperature == null || isNaN(+cfg.temperature) ? undefined : +cfg.temperature;
-  let body;
-  if (provider === 'openai') {
-    body = {
-      model: cfg.model,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }]
-    };
-  } else if (provider === 'anthropic') {
-    body = {
-      model: cfg.model,
-      max_tokens: 4096,
-      system,
-      messages: [{ role: 'user', content: user }]
-    };
-  } else {
-    body = {
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: user }] }],
-      generationConfig: { responseMimeType: 'application/json' }
-    };
-  }
-  if (temp !== undefined) {
-    if (provider === 'gemini') body.generationConfig.temperature = temp;
-    else body.temperature = temp;
-  }
-  body = N.merge(body, parseJsonField(cfg.extraBody, '额外请求体'));
-
-  const res = await fetchWithRetry(endpoint(provider, cfg, 'chat'), {
-    method: 'POST',
-    headers: headersFor(provider, cfg),
-    body: JSON.stringify(body)
-  });
-  const data = await res.json().catch(() => { throw new ApiError('接口返回的不是 JSON'); });
-
-  let text = '';
-  if (provider === 'openai') {
-    const c = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    text = Array.isArray(c) ? c.map((p) => p.text || '').join('') : (c || '');
-  } else if (provider === 'anthropic') {
-    text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-  } else {
-    const cand = data.candidates && data.candidates[0];
-    text = ((cand && cand.content && cand.content.parts) || []).filter((p) => !p.thought).map((p) => p.text || '').join('');
-    if (!text && cand && cand.finishReason) throw new ApiError('Gemini 未返回内容：' + cand.finishReason);
-  }
-  if (!text) throw new ApiError('模型返回为空');
-  return text;
-}
-
-async function listModels(provider, cfg) {
-  const res = await fetchWithRetry(endpoint(provider, cfg, 'models'), {
-    method: 'GET',
-    headers: headersFor(provider, cfg)
-  }, 1);
-  const data = await res.json();
-  let ids = [];
-  if (provider === 'gemini') {
-    ids = (data.models || [])
-      .filter((m) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
-      .map((m) => String(m.name || '').replace(/^models\//, ''));
-  } else {
-    ids = (data.data || data.models || []).map((m) => m.id || m.name);
-  }
-  return ids.filter(Boolean).sort();
 }
 
 // --------------------------------------------------------- basic mode (Google)
@@ -258,7 +102,7 @@ async function googleTranslate(texts, target) {
     chunk.forEach((t) => body.append('q', t));
     let res;
     try {
-      res = await fetchWithRetry(GOOGLE_URL + encodeURIComponent(tl), {
+      res = await L.fetchWithRetry(GOOGLE_URL + encodeURIComponent(tl), {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
         body: body.toString()
@@ -287,7 +131,7 @@ const handlers = {
     }
     const cfg = s.providers[s.provider];
     const system = buildSystemPrompt(s, [sender.tab && sender.tab.title, msg.frameTitle]);
-    const raw = await callModel(s.provider, cfg, system, buildUserPrompt(msg));
+    const raw = await L.callModel(s.provider, cfg, system, buildUserPrompt(msg), { json: true });
     const translations = parseTranslations(raw, msg.lines.map((l) => l.id));
     if (!Object.keys(translations).length) throw new ApiError('无法解析模型输出：' + raw.slice(0, 120));
     return { translations };
@@ -305,13 +149,13 @@ const handlers = {
       const tr = await googleTranslate(lines.map((l) => l.text), s.targetLang);
       return { ms: Date.now() - t0, lines: lines.map((l, i) => ({ src: l.text, tr: tr[i] || '' })), raw: '' };
     }
-    const raw = await callModel(msg.provider, cfg, buildSystemPrompt(s, []), buildUserPrompt({ lines }));
+    const raw = await L.callModel(msg.provider, cfg, buildSystemPrompt(s, []), buildUserPrompt({ lines }), { json: true });
     const tr = parseTranslations(raw, ['1', '2']);
     return { ms: Date.now() - t0, lines: lines.map((l) => ({ src: l.text, tr: tr[l.id] || '' })), raw: Object.keys(tr).length ? '' : raw.slice(0, 300) };
   },
 
   async 'ntusub-models'(msg) {
-    return { models: await listModels(msg.provider, msg.cfg) };
+    return { models: await L.listModels(msg.provider, msg.cfg) };
   },
 
   async 'ntusub-cache-touch'(msg) {
@@ -321,7 +165,7 @@ const handlers = {
 
   async 'ntusub-cache-clear'() {
     const all = await chrome.storage.local.get(null);
-    const keys = Object.keys(all).filter((k) => k.startsWith('c:'));
+    const keys = Object.keys(all).filter((k) => /^[cnh]:/.test(k));
     await chrome.storage.local.remove(keys.concat('cacheIndex'));
     return { removed: keys.length };
   },
@@ -372,6 +216,15 @@ chrome.commands.onCommand.addListener(async (cmd) => {
     await N.saveSettings({ display: { mode: modes[(modes.indexOf(s.display.mode) + 1) % modes.length] } });
   }
 });
+
+function setupSidePanel() {
+  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  } else {
+    chrome.action.setPopup({ popup: 'sidepanel/sidepanel.html?popup=1' });
+  }
+}
+setupSidePanel();
 
 chrome.runtime.onInstalled.addListener((d) => {
   if (d.reason === 'install') chrome.runtime.openOptionsPage();

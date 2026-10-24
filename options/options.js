@@ -1,6 +1,9 @@
 const N = globalThis.NTUSUB;
 const $ = (s) => document.querySelector(s);
 
+// Embedded as the side panel's 设置 tab.
+if (new URLSearchParams(location.search).has('embed')) document.documentElement.classList.add('embed');
+
 const HINTS = {
   openai: '兼容 OpenAI Chat Completions 的接口：OpenAI、DeepSeek、通义千问、OpenRouter、one-api / new-api 等。Base URL 一般以 /v1 结尾，会自动拼接 /chat/completions。',
   anthropic: 'Anthropic Messages API 或兼容代理。填写根地址即可（如 https://api.anthropic.com），会自动拼接 /v1/messages。',
@@ -390,7 +393,7 @@ async function init() {
   });
 
   $('#clearCache').addEventListener('click', async () => {
-    if (!confirm('确定清空所有视频的翻译缓存吗？')) return;
+    if (!confirm('确定清空所有视频的译文、笔记和对话记录吗？')) return;
     const res = await chrome.runtime.sendMessage({ type: 'ntusub-cache-clear' });
     refreshCacheStats(res && res.ok ? `已清除 ${res.removed} 个视频的缓存` : '');
   });

@@ -1,0 +1,256 @@
+WEBVTT
+
+00:00:02.000 --> 00:00:06.200
+Okay, good evening everyone, can you hear me at the
+
+00:00:06.350 --> 00:00:07.130
+back?
+
+00:00:07.880 --> 00:00:09.800
+Alright, let's get started.
+
+00:00:10.550 --> 00:00:14.750
+Last week we talked about decision trees, and we saw
+
+00:00:14.900 --> 00:00:18.340
+that a single deep tree tends to overfit.
+
+00:00:19.090 --> 00:00:23.290
+It has low bias, but very high variance, so if
+
+00:00:23.440 --> 00:00:27.640
+you change the training data a little, the tree can
+
+00:00:27.790 --> 00:00:29.330
+look completely different.
+
+00:00:30.080 --> 00:00:34.280
+So today the question is, how do we keep the
+
+00:00:34.430 --> 00:00:37.490
+low bias but bring the variance down?
+
+00:00:38.240 --> 00:00:42.440
+The idea is called bagging, which is short for bootstrap
+
+00:00:42.590 --> 00:00:43.370
+aggregating.
+
+00:00:44.120 --> 00:00:46.040
+First, the bootstrap part.
+
+00:00:46.790 --> 00:00:50.990
+From a training set of n samples, we draw n
+
+00:00:51.140 --> 00:00:52.680
+samples with replacement.
+
+00:00:53.430 --> 00:00:57.630
+Because we sample with replacement, some points appear twice or
+
+00:00:57.780 --> 00:01:01.600
+three times, and some do not appear at all.
+
+00:01:02.350 --> 00:01:06.550
+In fact, the probability that a given point is never
+
+00:01:06.700 --> 00:01:10.900
+picked is one minus one over n, to the power
+
+00:01:11.050 --> 00:01:11.830
+n.
+
+00:01:12.580 --> 00:01:16.780
+When n is large, this goes to one over e,
+
+00:01:16.930 --> 00:01:18.850
+which is about 0.368.
+
+00:01:19.600 --> 00:01:23.800
+So each bootstrap sample contains roughly 63.2 percent of the
+
+00:01:23.950 --> 00:01:25.490
+distinct original points.
+
+00:01:26.240 --> 00:01:30.440
+Remember this number, it is a very popular quiz question.
+
+00:01:31.190 --> 00:01:33.110
+Second, the aggregating part.
+
+00:01:33.860 --> 00:01:38.060
+We train one model on each bootstrap sample, say B
+
+00:01:38.210 --> 00:01:38.990
+models.
+
+00:01:39.740 --> 00:01:43.940
+For regression we average the B predictions, and for classification
+
+00:01:44.090 --> 00:01:46.390
+we take a majority vote.
+
+00:01:47.140 --> 00:01:49.060
+Why does this help?
+
+00:01:49.810 --> 00:01:54.010
+If you average B models whose errors are independent, the
+
+00:01:54.160 --> 00:01:57.220
+variance drops by a factor of B.
+
+00:01:57.970 --> 00:02:02.170
+But in practice the trees are correlated, because they are
+
+00:02:02.320 --> 00:02:04.620
+trained on very similar data.
+
+00:02:05.370 --> 00:02:09.570
+If the pairwise correlation is rho, the variance of the
+
+00:02:09.720 --> 00:02:13.920
+average is rho times sigma squared, plus one minus rho
+
+00:02:14.070 --> 00:02:16.370
+over B times sigma squared.
+
+00:02:17.120 --> 00:02:21.320
+So when B goes to infinity, the second term disappears,
+
+00:02:21.470 --> 00:02:24.910
+but the first term, rho sigma squared, stays.
+
+00:02:25.660 --> 00:02:29.860
+This means adding more trees never hurts, but it stops
+
+00:02:30.010 --> 00:02:31.930
+helping after a while.
+
+00:02:32.680 --> 00:02:36.120
+The real limit is the correlation between trees.
+
+00:02:36.870 --> 00:02:40.690
+And this is exactly the motivation for random forests.
+
+00:02:41.440 --> 00:02:45.640
+A random forest is bagging with decision trees, plus one
+
+00:02:45.790 --> 00:02:46.950
+extra trick.
+
+00:02:47.700 --> 00:02:51.900
+At every split, instead of looking at all p features,
+
+00:02:52.050 --> 00:02:56.250
+the tree only considers a random subset of m features.
+
+00:02:57.000 --> 00:03:01.200
+A common default is m equals the square root of
+
+00:03:01.350 --> 00:03:05.170
+p for classification, and p over three for regression.
+
+00:03:05.920 --> 00:03:10.120
+Because each split sees different features, the trees become less
+
+00:03:10.270 --> 00:03:14.470
+correlated, so rho goes down and the averaged variance goes
+
+00:03:14.620 --> 00:03:16.160
+down as well.
+
+00:03:16.910 --> 00:03:21.110
+Notice that we do not prune the trees in a
+
+00:03:21.260 --> 00:03:22.420
+random forest.
+
+00:03:23.170 --> 00:03:27.370
+Each tree is grown deep, with low bias, and the
+
+00:03:27.520 --> 00:03:30.200
+averaging takes care of the variance.
+
+00:03:30.950 --> 00:03:35.150
+Now, one more nice thing about bagging is the out-of-bag
+
+00:03:35.300 --> 00:03:36.080
+error.
+
+00:03:36.830 --> 00:03:41.030
+Remember that each bootstrap sample leaves out about 36.8 percent
+
+00:03:41.180 --> 00:03:42.720
+of the data.
+
+00:03:43.470 --> 00:03:47.670
+For every training point, we can collect the trees that
+
+00:03:47.820 --> 00:03:52.020
+did not see it, and use only those trees to
+
+00:03:52.170 --> 00:03:53.330
+predict it.
+
+00:03:54.080 --> 00:03:58.280
+Averaging this error over all points gives the out-of-bag error,
+
+00:03:58.430 --> 00:04:01.870
+which is almost like cross-validation, but for free.
+
+00:04:02.620 --> 00:04:06.820
+So you do not need a separate validation set to
+
+00:04:06.970 --> 00:04:09.270
+tune the number of trees.
+
+00:04:10.020 --> 00:04:14.220
+A common mistake in the assignment last year was to
+
+00:04:14.370 --> 00:04:18.570
+report the training accuracy of the forest, which is almost
+
+00:04:18.720 --> 00:04:22.540
+one hundred percent, and call it the test accuracy.
+
+00:04:23.290 --> 00:04:25.590
+Please do not do that.
+
+00:04:26.340 --> 00:04:30.160
+Let me show you a quick example with scikit-learn.
+
+00:04:30.910 --> 00:04:35.110
+We create RandomForestClassifier with n_estimators equal to five hundred and
+
+00:04:35.260 --> 00:04:37.180
+oob_score equal to true.
+
+00:04:37.930 --> 00:04:42.130
+After fitting, the attribute oob_score_ gives you the out-of-bag accuracy
+
+00:04:42.280 --> 00:04:43.060
+directly.
+
+00:04:43.810 --> 00:04:48.010
+Okay, for the midterm quiz next week, bagging, the 63.2
+
+00:04:48.160 --> 00:04:52.360
+percent result, and the variance formula with rho are all
+
+00:04:52.510 --> 00:04:53.670
+in scope.
+
+00:04:54.420 --> 00:04:58.620
+You do not need to memorise the proof, but you
+
+00:04:58.770 --> 00:05:02.970
+should be able to explain why decorrelating the trees reduces
+
+00:05:03.120 --> 00:05:04.280
+the variance.
+
+00:05:05.030 --> 00:05:09.230
+Alright, let's take a ten minute break, and after the
+
+00:05:09.380 --> 00:05:12.440
+break we will move on to boosting.

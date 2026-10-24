@@ -45,6 +45,7 @@
     errStreak: 0,
     error: '',
     captionAssets: null,
+    entry: null,
     triedScan: false,
     triedAssets: false,
     ttTried: new WeakSet(),
@@ -119,19 +120,51 @@
     try {
       if (d.type === 'captions') onCaptionText(d.url, d.text);
       else if (d.type === 'captionList') onCaptionList(d);
+      else if (d.type === 'entryInfo') onEntryInfo(d.text);
+      else if (d.type === 'segmentsDone') onSegmentsDone(d.url);
     } catch (err) { /* ignore malformed */ }
   });
   postToInject('hello');
 
+  // The lecture's own entry (not the dual-screen child stream) with the longest duration.
+  function onEntryInfo(text) {
+    let data;
+    try { data = JSON.parse(text); } catch (e) { return; }
+    let best = null;
+    (function walk(o, depth) {
+      if (!o || typeof o !== 'object' || depth > 8) return;
+      if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+      if (/MediaEntry$/.test(o.objectType || '') && o.id && o.name && !o.parentEntryId) {
+        if (!best || (o.duration || 0) > (best.duration || 0)) best = o;
+      }
+      for (const k in o) if (o[k] && typeof o[k] === 'object') walk(o[k], depth + 1);
+    })(data, 0);
+    if (!best) return;
+    S.entry = { id: best.id, name: String(best.name).slice(0, 200), description: String(best.description || '').slice(0, 1000), duration: best.duration || 0, at: Date.now() };
+    sendPanelStateSoon();
+  }
+
   function onCaptionText(url, text) {
     const cues = P.parseCaptions(text);
     if (!cues.length) return;
+    const segmented = /segmentIndex\/\d+/i.test(url);
     addTrack({
       id: trackIdFromUrl(url),
       cues,
       source: 'network',
-      segmented: /segmentIndex\/\d+/i.test(url)
+      segmented,
+      complete: !segmented // a whole caption file is complete as soon as it arrives
     });
+  }
+
+  // All caption segments of a track have been fetched.
+  const completedTracks = new Set();
+  function onSegmentsDone(url) {
+    const id = trackIdFromUrl(url);
+    completedTracks.add(id);
+    const t = S.tracks.get(id);
+    if (t) t.complete = true;
+    sendPanelStateSoon();
   }
 
   function addTrack(t) {
@@ -141,12 +174,15 @@
       old.receivedAt = Date.now();
       old.sourceLike = P.isSourceLike(old.cues);
       if (t.ref) old.ref = t.ref;
+      if (t.complete || completedTracks.has(t.id)) old.complete = true;
     } else {
       t.receivedAt = Date.now();
       t.sourceLike = P.isSourceLike(t.cues);
+      if (completedTracks.has(t.id)) t.complete = true;
       S.tracks.set(t.id, t);
     }
     chooseTrack();
+    sendPanelStateSoon();
   }
 
   function onCaptionList(d) {
@@ -302,7 +338,7 @@
     }
     if (best !== S.active) {
       if (best) activate(best);
-      else { gen++; S.active = null; updateStyle(); render(); }
+      else { gen++; S.active = null; updateStyle(); render(); sendPanelStateSoon(); }
     } else if (best) {
       pump();
       render();
@@ -330,6 +366,7 @@
       if (m) send({ type: 'ntusub-cache-touch', key }).catch(() => {});
       render();
       pump();
+      sendPanelStateSoon();
     }).catch(() => { S.cacheLoaded = true; pump(); });
     ensureOverlay();
     updateStyle();
@@ -437,15 +474,18 @@
         if (tr) S.trans.set(k, tr);
         else S.fails.set(k, (S.fails.get(k) || 0) + 1);
       });
+      if (S.error) panelPost({ type: 'status', error: '', halted: false });
       S.error = '';
       S.errStreak = 0;
       saveCacheSoon();
       render();
+      sendPanelTrans(keys);
     } catch (e) {
       if (myGen !== gen) return;
       S.error = e.message || String(e);
       console.warn('[NTU双语字幕] 翻译失败：', S.error);
       if (e.fatal) S.halted = true;
+      panelPost({ type: 'status', error: S.error, halted: S.halted });
       keys.forEach((k) => S.fails.set(k, (S.fails.get(k) || 0) + 1));
       S.errStreak++;
       wait = Math.min(30000, 1500 * 2 ** (S.errStreak - 1));
@@ -721,7 +761,8 @@
     on('seeking', seek);
     on('seeked', seek);
     on('timeupdate', () => { if (v.paused) render(); });
-    on('loadedmetadata', () => { if (S.ov) S.ov.geo = ''; layout(); });
+    on('loadedmetadata', () => { if (S.ov) S.ov.geo = ''; layout(); sendPanelStateSoon(); });
+    for (const ev of ['play', 'pause', 'seeked', 'timeupdate', 'ratechange']) on(ev, sendPanelTick);
     on('emptied', onEmptied);
     S.ro = new ResizeObserver(() => layout());
     S.ro.observe(v);
@@ -739,7 +780,9 @@
     S.triedScan = false;
     S.triedAssets = false;
     S.dom.text = '';
+    if (S.entry && S.entry.at < cutoff) S.entry = null;
     chooseTrack();
+    sendPanelStateSoon();
   }
 
   function findVideo() {
@@ -781,43 +824,95 @@
     if (S.video.paused) render();
   }, 300);
 
-  // ------------------------------------------------------- popup messages
-  function srtTime(t) {
-    const ms = Math.max(0, Math.round(t * 1000));
-    const p = (n, w) => String(n).padStart(w, '0');
-    return `${p(Math.floor(ms / 3600000), 2)}:${p(Math.floor(ms / 60000) % 60, 2)}:${p(Math.floor(ms / 1000) % 60, 2)},${p(ms % 1000, 3)}`;
+  // ------------------------------------------------------------ side panel
+  // The side panel pings the tab; a frame that has the video connects a port and streams the
+  // transcript, translations and playback position to it, and accepts seek requests.
+  let panelPort = null;
+  let stateTimer = 0;
+
+  function panelPost(msg) {
+    if (!panelPort) return;
+    try { panelPort.postMessage(msg); } catch (e) { panelPort = null; }
   }
 
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (!msg || typeof msg.type !== 'string' || !S.video) return;
-    if (msg.type === 'ntusub-status') {
-      const { total, done } = progress();
-      sendResponse({
-        ok: true,
-        source: S.active ? S.active.source : (S.dom.text ? 'dom' : null),
-        total, done,
-        running: S.running,
+  function panelConnect() {
+    if (panelPort || !S.video || !alive()) return;
+    try { panelPort = chrome.runtime.connect({ name: 'ntusub-frame' }); } catch (e) { panelPort = null; return; }
+    panelPort.onDisconnect.addListener(() => { void chrome.runtime.lastError; panelPort = null; });
+    panelPort.onMessage.addListener(onPanelMessage);
+    sendPanelState();
+  }
+
+  function panelTick() {
+    const v = S.video;
+    return { time: playbackTime(), playing: !!v && !v.paused && !v.ended, rate: (v && v.playbackRate) || 1 };
+  }
+
+  function sendPanelState() {
+    clearTimeout(stateTimer);
+    stateTimer = 0;
+    if (!panelPort || !S.video) return;
+    const t = S.active;
+    const trans = {};
+    if (t) for (const c of t.cues) { const v = S.trans.get(c.key); if (v) trans[c.key] = v; }
+    panelPost({
+      type: 'state',
+      info: {
+        title: (S.entry && S.entry.name) || document.title || '',
+        description: (S.entry && S.entry.description) || '',
+        trackId: t ? t.id : null,
+        source: t ? t.source : (S.dom.text ? 'dom' : null),
+        complete: !!(t && t.complete),
+        duration: Number.isFinite(S.video.duration) ? S.video.duration : 0,
         error: S.error,
         halted: S.halted
-      });
-    } else if (msg.type === 'ntusub-export') {
-      if (!S.active) { sendResponse({ ok: false, error: '尚未获取到完整字幕' }); return; }
-      const blocks = S.active.cues.map((c, i) => {
-        const tr = S.trans.get(c.key);
-        const body = settings.display.order === 'orig-top' ? [c.text, tr] : [tr, c.text];
-        return `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${body.filter(Boolean).join('\n')}\n`;
-      });
-      sendResponse({ ok: true, srt: blocks.join('\n') });
-    } else if (msg.type === 'ntusub-retranslate') {
-      if (!S.active) { sendResponse({ ok: false, error: '尚未获取到完整字幕' }); return; }
-      const t = S.active;
-      gen++; // stop in-flight batches from writing old results back
-      S.trans = new Map();
-      S.dom.trans.clear();
-      chrome.storage.local.remove(S.cacheKey).catch(() => {}).finally(() => {
-        if (S.active === t) activate(t);
-      });
-      sendResponse({ ok: true });
+      },
+      cues: t ? t.cues.map((c) => [c.start, c.end, c.text, c.key]) : [],
+      trans,
+      tick: panelTick()
+    });
+  }
+
+  // Track loading fires many updates in a burst (one per caption segment), so coalesce them.
+  function sendPanelStateSoon() {
+    if (panelPort && !stateTimer) stateTimer = setTimeout(sendPanelState, 400);
+  }
+
+  function sendPanelTick() {
+    if (panelPort && S.video) panelPost({ type: 'tick', ...panelTick() });
+  }
+
+  function sendPanelTrans(keys) {
+    if (!panelPort) return;
+    const trans = {};
+    for (const k of keys) { const v = S.trans.get(k); if (v) trans[k] = v; }
+    panelPost({ type: 'trans', trans });
+  }
+
+  function retranslate() {
+    if (!S.active) return;
+    const t = S.active;
+    gen++; // stop in-flight batches from writing old results back
+    S.trans = new Map();
+    S.dom.trans.clear();
+    chrome.storage.local.remove(S.cacheKey).catch(() => {}).finally(() => {
+      if (S.active === t) activate(t);
+    });
+  }
+
+  function onPanelMessage(msg) {
+    if (!msg || !S.video) return;
+    if (msg.type === 'seek' && Number.isFinite(msg.time)) {
+      S.video.currentTime = Math.max(0, msg.time - (settings.display.offsetMs || 0) / 1000);
+      if (msg.play && S.video.paused) S.video.play().catch(() => {});
+    } else if (msg.type === 'get-state') {
+      sendPanelState();
+    } else if (msg.type === 'retranslate') {
+      retranslate();
     }
+  }
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.type === 'ntusub-panel-ping' && S.video) panelConnect();
   });
 })();

@@ -2,11 +2,11 @@
   "manifest_version": 3,
   "name": "NTULearn 双语字幕 AI 翻译",
   "short_name": "NTU 双语字幕",
-  "version": "1.1.1",
-  "description": "为 NTULearn Media Gallery (Kaltura) 视频生成双语字幕：免配置基础模式（Google 翻译）开箱即用，也可接入 OpenAI / Anthropic / Gemini 格式大模型精准翻译专业术语。",
+  "version": "1.2.0",
+  "description": "为 NTULearn Media Gallery (Kaltura) 视频生成双语字幕，并在侧边栏提供逐段译文、AI 课堂笔记与课程问答。免配置基础模式开箱即用，也可接入 OpenAI / Anthropic / Gemini 格式大模型。",
   "author": "Alan_m-12",
   "homepage_url": "https://github.com/Alan1112223331/ntulearn-bilingual-subtitles",
-  "minimum_chrome_version": "111",
+  "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",
     "32": "icons/icon32.png",
@@ -14,20 +14,23 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "NTU 双语字幕",
-    "default_popup": "popup/popup.html",
+    "default_title": "NTU 双语字幕 · 打开侧边栏",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
     }
   },
   "options_page": "options/options.html",
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
   "background": {
     "service_worker": "src/background.js"
   },
   "permissions": [
     "storage",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://*.kaltura.com/*",

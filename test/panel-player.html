@@ -1,0 +1,63 @@
+<!doctype html>
+<html data-role="content"><head><meta charset="utf-8"><title>player</title>
+<style>
+  body { margin: 0; background: #111; }
+  .playkit-player { position: relative; width: 100%; height: 100vh; background: #000; }
+  .playkit-engine, video { width: 100%; height: 100%; display: block; }
+  .playkit-engine { position: absolute; inset: 0; }
+  .slide { position: absolute; inset: 0; background: #fff; color: #1b1b1b; font-family: "Segoe UI", Arial, sans-serif; display: none; }
+  .demo .slide { display: block; }
+  .slide .bar { background: linear-gradient(#3a3fbf, #2c30a0); color: #fff; font-size: 4.2vh; padding: 2.4vh 4vw; }
+  .slide ul { margin: 4vh 5vw 0; padding: 0; font-size: 3.3vh; line-height: 1.8; }
+  .slide li { list-style: none; position: relative; padding-left: 2.4vw; }
+  .slide li::before { content: ""; position: absolute; left: 0; top: .78em; width: .9vh; height: .9vh; border-radius: 50%; background: #3a3fbf; }
+  .slide .eq { text-align: center; font-family: "Cambria Math", "Times New Roman", serif; font-size: 4.2vh; margin-top: 3vh; font-style: italic; }
+  .slide .foot { position: absolute; left: 0; right: 0; bottom: 0; background: #2c30a0; color: #dfe1ff; font-size: 1.9vh; padding: .8vh 4vw; display: flex; justify-content: space-between; }
+</style>
+<script src="chrome-bus.js"></script>
+<script src="../src/inject.js"></script>
+<script src="../src/shared.js"></script>
+<script src="../src/parsers.js"></script>
+<script src="../src/content.js"></script>
+</head>
+<body>
+<div class="playkit-player">
+  <div class="playkit-engine"><video id="v"></video></div>
+  <div class="slide">
+    <div class="bar">Why Bagging Works: Variance of an Average</div>
+    <ul>
+      <li>Average of B models with variance &sigma;&sup2; and pairwise correlation &rho;</li>
+      <li>Independent errors (&rho; = 0): variance drops by a factor of B</li>
+      <li>Correlated trees: the &rho;&sigma;&sup2; term never goes away</li>
+      <li>Random forest: decorrelate trees with random feature subsets</li>
+    </ul>
+    <div class="eq">Var = &rho;&sigma;&sup2; + (1 &minus; &rho;) &sigma;&sup2; / B</div>
+    <div class="foot"><span>Ensemble Learning</span><span>Demo lecture</span><span>14 / 57</span></div>
+  </div>
+</div>
+<script>
+  // Fake media clock so playback can be simulated without a real video file.
+  const v = document.getElementById('v');
+  let t0 = 0, paused = true, base = 0;
+  const now = () => (paused ? base : base + (performance.now() - t0) / 1000);
+  Object.defineProperty(v, 'currentTime', { get: now, set: (x) => { base = x; t0 = performance.now(); v.dispatchEvent(new Event('seeking')); v.dispatchEvent(new Event('seeked')); } });
+  Object.defineProperty(v, 'paused', { get: () => paused });
+  const lecture = location.search.includes('lecture'); // realistic 5-minute lecture fixture
+  if (location.search.includes('demo')) document.body.classList.add('demo');
+  const startAt = +(new URLSearchParams(location.search).get('t') || 0);
+  if (startAt) setTimeout(() => { v.currentTime = startAt; }, 900);
+  // ?long: a 3-hour recording whose captions stop early (class ended before the recording did).
+  const long = location.search.includes('long');
+  Object.defineProperty(v, 'duration', { get: () => (long ? 10799 : lecture ? 320 : 1200) });
+  v.play = async () => { base = now(); t0 = performance.now(); paused = false; v.dispatchEvent(new Event('play')); };
+  v.pause = () => { base = now(); paused = true; v.dispatchEvent(new Event('pause')); };
+  setInterval(() => { if (!paused) v.dispatchEvent(new Event('timeupdate')); }, 250);
+
+  // Kaltura-like segmented captions (4 x 5 min) plus an entry-info API response.
+  setTimeout(() => {
+    fetch(lecture ? 'fixtures/lecture/caption_demo_lecture.vtt' : 'fixtures/captionAssetId/0_test/segmentDuration/300/segmentIndex/1.vtt');
+    const entry = JSON.stringify([{ objectType: 'KalturaMediaEntry', id: '0_demo', name: lecture ? 'Week 9 · Bagging & Random Forests (demo)' : 'EE6406 Week 9 · Ensemble Learning (demo)', description: 'Bagging and random forests', duration: lecture ? 320 : 1200 }]);
+    window.postMessage({ __ntusub: 'inject', type: 'entryInfo', text: entry }, '*');
+  }, 300);
+</script>
+</body></html>

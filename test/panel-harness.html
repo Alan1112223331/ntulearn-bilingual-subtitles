@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>side panel harness</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #222; }
+  body { display: grid; grid-template-columns: 1fr 400px; }
+  iframe { border: 0; width: 100%; height: 100%; }
+  #panel { border-left: 1px solid #444; }
+  /* ?only=panel: screenshot the side panel alone; the player keeps running off-screen. */
+  .only-panel { grid-template-columns: 1fr; }
+  .only-panel #player { position: absolute; left: -3000px; width: 900px; height: 560px; }
+  .only-panel #panel { border-left: 0; }
+</style>
+<script src="../src/shared.js"></script>
+<script>
+  // Settings for the test run: AI mode against the local fake LLM.
+  window.__ntusubBus = {
+    mem: {
+      settings: {
+        provider: 'openai',
+        providers: { openai: { baseUrl: 'https://fake-llm.test/v1', apiKey: 'test', model: 'fake-model' } },
+        batchSize: 40, concurrency: 3
+      }
+    },
+    changeL: [], tabMsgL: [], connectL: [], log: [], translateDelay: 120,
+    fakeTranslate: (t) => '【译】' + t,
+    clone: (x) => (x === undefined ? x : JSON.parse(JSON.stringify(x)))
+  };
+  if (location.search.includes('basic')) window.__ntusubBus.mem.settings.provider = 'google';
+  // ?real: use real API settings stored for this tab only (sessionStorage 'ntusub-real').
+  if (location.search.includes('real') && sessionStorage.getItem('ntusub-real')) {
+    window.__ntusubBus.mem.settings = JSON.parse(sessionStorage.getItem('ntusub-real'));
+  }
+  // ?demo: use real translations of the demo lecture instead of the "【译】" placeholder.
+  if (location.search.includes('demo')) {
+    const x = new XMLHttpRequest();
+    x.open('GET', 'fixtures/lecture/demo-translations.json', false);
+    x.send();
+    const dict = JSON.parse(x.responseText);
+    window.__ntusubBus.fakeTranslate = (t) => dict[t] || '【译】' + t;
+    // Pre-generated notes and chat (real model output) for the demo lecture.
+    const load = (f) => { const r = new XMLHttpRequest(); r.open('GET', 'fixtures/lecture/' + f, false); r.send(); return JSON.parse(r.responseText); };
+    const H = globalThis.NTUSUB.hash;
+    const trackId = 'url:' + new URL('fixtures/lecture/caption_demo_lecture.vtt', location.href).href;
+    window.__ntusubBus.mem['n:' + H(trackId) + ':' + H('简体中文')] = load('demo-notes.json');
+    window.__ntusubBus.mem['h:' + H(trackId)] = load('demo-chat.json');
+  }
+</script>
+</head>
+<body>
+  <iframe id="player"></iframe>
+  <iframe id="panel" src="../sidepanel/_harness.html"></iframe>
+<script>
+  document.getElementById('player').src = 'panel-player.html' + location.search;
+  if (location.search.includes('only=panel')) document.body.classList.add('only-panel');
+  // ?tab=notes|chat|transcript|settings opens that side-panel tab (for screenshots).
+  const tab = new URLSearchParams(location.search).get('tab');
+  if (tab) {
+    const panel = document.getElementById('panel');
+    panel.addEventListener('load', () => setTimeout(() => {
+      const b = panel.contentDocument.querySelector(`.tabs [data-tab="${tab}"]`);
+      if (b) b.click();
+    }, 600));
+  }
+</script>
+</body></html>
