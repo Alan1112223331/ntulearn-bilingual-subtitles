@@ -296,5 +296,17 @@ globalThis.NTUSUB_LLM = (() => {
     return null;
   }
 
-  return { ApiError, endpoint, headersFor, checkConfig, fetchWithRetry, buildBody, callModel, streamModel, listModels, extractJson, repairJson };
+  // Models often write LaTeX inside JSON strings with single backslashes. "\alpha" is an invalid
+  // escape and "\frac" / "\times" silently parse as form feed / tab, so double the backslash of
+  // anything that is not a real JSON escape, and of \b \f \n \r \t when a LaTeX command follows.
+  const TEX_CMD = /^(?:frac|dfrac|tfrac|forall|beta|bar|binom|bmod|boldsymbol|bot|bullet|big[lr]?|nabla|neq?|neg|nu|not|notin|nmid|times|text\w*|theta|tau|tanh?|to|top|tilde|triangle|rho|right\w*|rangle|rceil|rfloor|rm)$/;
+  function fixTexEscapes(raw) {
+    return String(raw || '').replace(/\\(\\|u[0-9a-fA-F]{4}|[a-zA-Z]+|[\s\S])/g, (m, x) => {
+      if (x === '\\' || x === '"' || x === '/' || /^u[0-9a-fA-F]{4}$/.test(x)) return m;
+      if (/^[bfnrt]/.test(x)) return TEX_CMD.test(x) ? '\\' + m : m;
+      return '\\' + m;
+    });
+  }
+
+  return { ApiError, endpoint, headersFor, checkConfig, fetchWithRetry, buildBody, callModel, streamModel, listModels, extractJson, repairJson, fixTexEscapes };
 })();

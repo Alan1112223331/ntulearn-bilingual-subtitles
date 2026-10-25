@@ -171,3 +171,5 @@ python -m http.server 8765
 ## 📄 License
 
 [MIT](LICENSE)
+
+公式排版使用随扩展打包的 [KaTeX](https://katex.org/) 0.16.22（MIT，见 [vendor/katex/LICENSE](vendor/katex/LICENSE)）。

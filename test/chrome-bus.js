@@ -133,7 +133,8 @@
       const mid = lines[Math.floor(lines.length / 2)] || lines[0];
       const sec = (l, n) => ({
         start: l[1], end: '', title: `知识点 ${n}（${l[1]} 起）`,
-        points: [`**要点**：${l[2].slice(0, 60)}`, '第二条解释，包含 `code` 与数字 0.632。'],
+        points: [`**要点**：${l[2].slice(0, 60)}`, '第二条解释，包含 `code` 与数字 0.632。',
+          '电压步长 $V_{\\text{step}} = \\frac{V_{\\text{ref}}}{2^{n}}$，全 1 输入时输出 `Vref×(1 - 2^(-n))`。'],
         terms: [{ en: 'bootstrap sample', tr: '自助采样样本', note: '有放回抽样得到的数据集' }],
         emphasis: [{ time: l[1], quote: 'This will be in the quiz.', note: '考试重点' }],
         examples: ['例：抽样 100 次约有 63.2% 的样本被选中'], aside: n === 1 ? '补充：随机森林在 Bagging 基础上再随机选特征。' : ''

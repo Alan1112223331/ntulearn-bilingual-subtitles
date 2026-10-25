@@ -43,7 +43,7 @@ globalThis.ChatView = (() => {
       '- "This part", "刚才", "现在" etc. refer to the content around the student\'s current playback position, which is given with each question.',
       '- You may add general knowledge to explain, but make clear what the lecturer said versus your own explanation. If the lecture does not cover something, say so.',
       '- The transcript is machine-generated (speech recognition) and may contain errors; interpret it sensibly.',
-      '- Use concise Markdown: short paragraphs, lists, **bold** for key ideas. No LaTeX - write formulas in plain text or `code`.',
+      '- Use concise Markdown: short paragraphs, lists, **bold** for key ideas. Write formulas in LaTeX: $...$ inline, $$...$$ on its own line for important equations.',
       ''
     ];
     const title = P.lectureTitle();

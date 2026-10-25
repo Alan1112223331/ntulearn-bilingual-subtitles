@@ -54,7 +54,9 @@ globalThis.NotesView = (() => {
       '',
       'Principles:',
       '- Faithful: only write what the lecture actually covers. The transcript comes from speech recognition and may contain errors - fix obvious ones silently, never invent content. Background knowledge the lecturer did not say goes only into "aside".',
-      '- Teach, do not just list: every point is a complete, self-contained explanation (what it is, why / how it works, conditions, pitfalls), not a vague phrase. Keep the lecturer\'s examples, numbers and formulas (plain text or `code`, no LaTeX).',
+      '- Teach, do not just list: every point is a complete, self-contained explanation (what it is, why / how it works, conditions, pitfalls), not a vague phrase. Keep the lecturer\'s examples, numbers and formulas.',
+      '- Formulas: write every formula or symbolic expression in LaTeX between $...$, e.g. $V_{\\text{step}} = \\frac{V_{\\text{ref}}}{2^{n}}$, never in backticks (backticks are only for program code). The output is JSON, so every LaTeX backslash must be doubled in the raw text ("\\\\frac").',
+      '- Readable: put the key term or conclusion of a point in **bold** (a few words, not whole sentences).',
       '- Traceable: sections and emphasis items carry the transcript timestamps where they are discussed.',
       '- Skip greetings, small talk and logistics, unless they concern exams, assessments, deadlines or what will be tested - those go into "emphasis".',
       s.courseContext && s.courseContext.trim() ? `\nCourse context: ${s.courseContext.trim()}` : '',
@@ -99,7 +101,8 @@ globalThis.NotesView = (() => {
   }
 
   // ------------------------------------------------------------ generation
-  const str = (v) => (typeof v === 'string' ? v.trim() : '');
+  // A LaTeX "\frac" / "\beta" that slipped through as a JSON escape comes back as a control char.
+  const str = (v) => (typeof v === 'string' ? v.trim().replace(/\f/g, '\\f').replace(/\x08/g, '\\b') : '');
   const arr = (v) => (Array.isArray(v) ? v : []);
 
   function normalizeSections(list, c) {
@@ -155,8 +158,8 @@ globalThis.NotesView = (() => {
     const { provider, cfg } = P.aiConfig();
     let partial = null;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const raw = await L.streamModel(provider, cfg, systemPrompt(), chunkPrompt(ci),
-        (d, full) => showProgress(ci, full.length), { json: true, signal, maxTokens: MAX_TOKENS });
+      const raw = L.fixTexEscapes(await L.streamModel(provider, cfg, systemPrompt(), chunkPrompt(ci),
+        (d, full) => showProgress(ci, full.length), { json: true, signal, maxTokens: MAX_TOKENS }));
       const j = L.extractJson(raw);
       const list = j && (Array.isArray(j) ? j : j.sections);
       if (Array.isArray(list)) {
@@ -177,7 +180,7 @@ globalThis.NotesView = (() => {
 
   async function genOverview(signal) {
     const { provider, cfg } = P.aiConfig();
-    const raw = await L.streamModel(provider, cfg, systemPrompt(), overviewPrompt(), () => {}, { json: true, signal, maxTokens: MAX_TOKENS });
+    const raw = L.fixTexEscapes(await L.streamModel(provider, cfg, systemPrompt(), overviewPrompt(), () => {}, { json: true, signal, maxTokens: MAX_TOKENS }));
     const j = L.extractJson(raw) || {};
     return {
       title: str(j.title),
@@ -289,16 +292,17 @@ globalThis.NotesView = (() => {
   function sectionHTML(s) {
     const md = MD.inline;
     let h = `<article class="sec" data-s="${s.start}" data-e="${s.end}">` +
-      `<header>${ts(s.start, `${P.fmt(s.start)}–${P.fmt(s.end)}`)}<h3>${md(s.title)}</h3></header>`;
+      `<header><div class="sec-meta">${ts(s.start, `${P.fmt(s.start)}–${P.fmt(s.end)}`)}<span class="now">正在讲</span></div>` +
+      `<h3>${md(s.title)}</h3></header>`;
     if (s.points.length) h += `<ul class="points">${s.points.map((p) => `<li>${md(p)}</li>`).join('')}</ul>`;
-    if (s.examples.length) h += `<div class="blk ex"><h4>例子</h4><ul>${s.examples.map((e) => `<li>${md(e)}</li>`).join('')}</ul></div>`;
     if (s.emphasis.length) {
       h += `<div class="blk emph"><h4>老师强调</h4><ul>${s.emphasis.map((e) =>
-        `<li>${e.time != null ? ts(e.time) : ''}${e.quote ? `<q>${md(e.quote)}</q>` : ''}${e.note ? ` <span class="note">${md(e.note)}</span>` : ''}</li>`).join('')}</ul></div>`;
+        `<li>${e.quote ? `<q>${md(e.quote)}</q>` : ''}${e.time != null ? ts(e.time) : ''}${e.note ? `<span class="note">${md(e.note)}</span>` : ''}</li>`).join('')}</ul></div>`;
     }
+    if (s.examples.length) h += `<div class="blk ex"><h4>例子</h4><ul>${s.examples.map((e) => `<li>${md(e)}</li>`).join('')}</ul></div>`;
     if (s.terms.length) {
       h += `<div class="blk terms"><h4>术语</h4><dl>${s.terms.map((t) =>
-        `<div><dt><b>${P.esc(t.en)}</b>${t.tr ? ` · ${P.esc(t.tr)}` : ''}</dt>${t.note ? `<dd>${md(t.note)}</dd>` : ''}</div>`).join('')}</dl></div>`;
+        `<div><dt><b>${P.esc(t.en)}</b>${t.tr ? `<span class="tr">${P.esc(t.tr)}</span>` : ''}</dt>${t.note ? `<dd>${md(t.note)}</dd>` : ''}</div>`).join('')}</dl></div>`;
     }
     if (s.aside) h += `<div class="blk aside"><h4>补充说明 <small>非课堂原话</small></h4><p>${md(s.aside)}</p></div>`;
     return h + '</article>';
@@ -349,12 +353,12 @@ globalThis.NotesView = (() => {
       if (secs) { h += secs.map(sectionHTML).join(''); return; }
       const range = `${P.fmt(c.start)}–${P.fmt(c.end)}`;
       if (failed.has(ci)) {
-        h += `<article class="sec placeholder failed" data-s="${c.start}" data-e="${c.end}"><header>${ts(c.start, range)}<h3>这一段生成失败</h3></header>` +
+        h += `<article class="sec placeholder failed" data-s="${c.start}" data-e="${c.end}"><header><div class="sec-meta">${ts(c.start, range)}</div><h3>这一段生成失败</h3></header>` +
           `<p class="err">${P.esc(failed.get(ci))}</p><button type="button" class="btn small" data-act="continue">重试</button></article>`;
       } else {
         const prog = running.has(ci) && progress.get(ci) ? `已生成 ${progress.get(ci)} 字` : '';
-        h += `<article class="sec placeholder${running.has(ci) ? ' running' : ''}" data-ci="${ci}" data-s="${c.start}" data-e="${c.end}"><header>${ts(c.start, range)}` +
-          `<h3>${running.has(ci) ? '正在整理这一段…' : '等待生成'}</h3><span class="prog">${prog}</span></header><div class="skeleton"><i></i><i></i><i></i></div></article>`;
+        h += `<article class="sec placeholder${running.has(ci) ? ' running' : ''}" data-ci="${ci}" data-s="${c.start}" data-e="${c.end}"><header><div class="sec-meta">${ts(c.start, range)}<span class="prog">${prog}</span></div>` +
+          `<h3>${running.has(ci) ? '正在整理这一段…' : '等待生成'}</h3></header><div class="skeleton"><i></i><i></i><i></i></div></article>`;
       }
     });
 
@@ -422,7 +426,9 @@ globalThis.NotesView = (() => {
   function toHTML(md) {
     const title = P.esc((data.overview && data.overview.title) || P.lectureTitle() || '课堂笔记');
     const content = MD.render(md).replace(/<button type="button" class="ts" data-t="[\d.]+">([^<]*)<\/button>/g, '<span class="ts">$1</span>');
-    return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>
+    return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css"><style>
+.math-block{display:block;overflow-x:auto}.fx{font-family:"Cambria Math",Cambria,"Times New Roman",serif}
 body{max-width:820px;margin:40px auto;padding:0 20px;font:16px/1.75 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:#1d2330;background:#fff}
 h3{font-size:1.6rem;margin:0 0 .6em}h4{font-size:1.2rem;margin:2em 0 .5em;padding-top:.8em;border-top:1px solid #e4e7ee}h5{font-size:1rem}
 .ts{display:inline-block;font:600 .8em ui-monospace,Consolas,monospace;color:#c8102e;background:#fdecef;border-radius:6px;padding:0 6px;margin-right:4px}

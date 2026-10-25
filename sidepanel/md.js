@@ -1,6 +1,7 @@
 // Minimal, safe Markdown → HTML for model output (chat answers, note bullets).
 // Everything is HTML-escaped before formatting is applied; only http(s) links are kept.
 // Timestamps such as [12:34] or [1:02:03–1:05:00] become seek buttons.
+// Math in $…$, $$…$$, \(…\) or \[…\] is typeset with KaTeX (vendor/katex).
 globalThis.MD = (() => {
   const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
@@ -9,16 +10,44 @@ globalThis.MD = (() => {
 
   const secs = (s) => s.split(':').map(Number).reduce((a, b) => a * 60 + b, 0);
 
+  // KaTeX output is plain markup (trust is off, so the source cannot add links or raw HTML).
+  function tex(src, display) {
+    const k = globalThis.katex;
+    if (k) {
+      try {
+        // Inline \frac is set in script size, too small to read in the panel.
+        const body = display ? src.trim() : src.trim().replace(/\\frac(?![a-zA-Z])/g, '\\dfrac');
+        return k.renderToString(body, { displayMode: display, throwOnError: false, strict: 'ignore', output: 'html' });
+      } catch (e) { /* fall through */ }
+    }
+    return `<code class="tex">${esc(src)}</code>`;
+  }
+
+  // Superscripts / subscripts for plain-text formulas such as 2^n, 2^(-n), V_ref (input is escaped).
+  const pretty = (s) => s
+    .replace(/([\w)\]])\^(?:\(([^()\n]{1,24})\)|\{([^{}\n]{1,24})\}|([+\-−]?\w+))/g, (m, b, p, c, w) => `${b}<sup>${p || c || w}</sup>`)
+    .replace(/\b([A-Za-z])_(?:\{([^{}\n]{1,16})\}|([A-Za-z0-9]{1,4})\b)/g, (m, b, c, w) => `${b}<sub>${c || w}</sub>`);
+
+  // `Vref / 2^n` in backticks is a formula, not code.
+  const CODE_LIKE = /[;{}"'`]|==|=>|!=|\w\(|\w\.\w+|\b(def|return|import|const|let|var|print|lambda|for|if)\b/;
+  const looksLikeFormula = (c) => /[\^=≈≤≥×÷√∑]/.test(c) && !CODE_LIKE.test(c);
+
+  // $$…$$, \[…\], \(…\), $…$ (no space inside the dollars and no digit after, so "$5 and $10" stays text).
+  const MATH = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$(?=[^\s$])([^$\n]*?[^\s$\\])\$(?!\d)/g;
+
   function inline(text) {
-    const codes = [];
-    let s = String(text).replace(/`([^`\n]+)`/g, (_, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
-    s = esc(s)
+    const slots = [];
+    const slot = (html) => { slots.push(html); return `\u0000${slots.length - 1}\u0000`; };
+    let s = String(text)
+      .replace(/`([^`\n]+)`/g, (_, c) => slot(looksLikeFormula(c) ? `<span class="fx">${pretty(esc(c))}</span>` : `<code>${esc(c)}</code>`))
+      .replace(MATH, (m, d1, d2, i1, i2) => slot(d1 || d2 ? `<span class="math-block">${tex(d1 || d2, true)}</span>` : tex(i1 || i2, false)));
+    s = esc(s).replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, label, url) =>
+      (/&(quot|#39|lt|gt);/.test(url) ? m : slot(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`)));
+    s = pretty(s)
       .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*\w])\*([^*\n]+)\*(?![*\w])/g, '$1<em>$2</em>')
-      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, label, url) =>
-        (/&(quot|#39|lt|gt);/.test(url) ? m : `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`))
       .replace(TS, (m, a, b) => `<button type="button" class="ts" data-t="${secs(a)}">${a}${b ? '–' + b : ''}</button>`);
-    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${esc(codes[+i])}</code>`);
+    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => slots[+i]);
   }
 
   const LIST = /^(\s*)([-*+•]|\d+[.)、])\s+(.*)$/;
@@ -52,6 +81,19 @@ globalThis.MD = (() => {
         while (i < lines.length && !FENCE.test(lines[i])) buf.push(lines[i++]);
         i++;
         out.push(`<pre><code>${esc(buf.join('\n'))}</code></pre>`);
+        continue;
+      }
+
+      // Display math over several lines: $$ … $$ or \[ … \]
+      const mo = /^\s*(\$\$|\\\[)(.*)$/.exec(line);
+      if (mo && !mo[2].includes(mo[1] === '$$' ? '$$' : '\\]')) {
+        const close = mo[1] === '$$' ? '$$' : '\\]';
+        flushPara(); closeLists();
+        const buf = [mo[2]];
+        i++;
+        while (i < lines.length && !lines[i].includes(close)) buf.push(lines[i++]);
+        if (i < lines.length) buf.push(lines[i++].split(close)[0]);
+        out.push(`<div class="math-block">${tex(buf.join('\n'), true)}</div>`);
         continue;
       }
 
