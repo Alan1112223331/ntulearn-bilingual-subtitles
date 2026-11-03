@@ -36,8 +36,8 @@
 • 13 种目标语言，也可自定义
 
 【AI 精准模式】
-• 接入你自己的大模型：OpenAI、Anthropic、Gemini 三种接口格式，可自定义接口地址和模型，兼容 DeepSeek、通义千问、OpenRouter 等
-• 或者直接登录 ChatGPT，用你的 ChatGPT 订阅额度，不需要 API Key（OpenAI 官方 Sign in with ChatGPT）
+• 接入你自己的大模型：支持三种常见的接口格式，可自定义接口地址和模型名称
+• 也可以登录 ChatGPT 账号，直接使用订阅额度，不需要 API Key
 • 结合上下文、课程背景和术语表翻译，专业名词更准确，并能修正语音识别的错误
 
 【侧边栏】
@@ -69,8 +69,8 @@ BILINGUAL SUBTITLES
 • 13 target languages, or a custom one
 
 AI MODE
-• Use your own model: OpenAI, Anthropic or Gemini API formats with a custom endpoint and model, compatible with DeepSeek, Qwen, OpenRouter and other providers
-• Or sign in with ChatGPT and use your ChatGPT plan, no API key needed (OpenAI's official Sign in with ChatGPT)
+• Use your own model: three common API formats, with a custom endpoint and model name
+• Or sign in with a ChatGPT account and use your plan, no API key needed
 • Translation uses surrounding context, your course context and a glossary, so technical terms come out right and speech-recognition errors get fixed
 
 SIDE PANEL
