@@ -166,7 +166,7 @@ globalThis.ChatView = (() => {
     streaming = { ctrl };
     stickBottom = true;
     renderAll();
-    const { provider, cfg } = P.aiConfig();
+    const { provider, cfg } = P.assistConfig();
     try {
       const messages = buildMessages();
       await L.streamModel(provider, cfg, systemPrompt(), messages, (d, full) => {

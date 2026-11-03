@@ -61,7 +61,7 @@ button { font: inherit; color: inherit; }
 .switch input:checked + span::before { transform: translateX(16px); }
 
 /* -------------------------------------------------------------------- tabs */
-.tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--card); border-bottom: 1px solid var(--line); padding: 0 6px; }
+.tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--card); border-bottom: 1px solid var(--line); padding: 0 6px; }
 .tabs button {
   position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px;
   border: 0; background: none; padding: 6px 0 7px; cursor: pointer; color: var(--muted); font-size: 12px;

@@ -37,6 +37,18 @@ globalThis.NTUSUB = (() => {
         extraBody: ''
       }
     },
+    // Optional dedicated model for the side panel's notes and chat (AI mode). Used only when a
+    // model name is set; otherwise notes and chat use the translation model above.
+    assist: {
+      provider: 'openai',
+      baseUrl: '',
+      apiKey: '',
+      model: '',
+      temperature: '',
+      extraHeaders: '',
+      extraBody: ''
+    },
+    notesEnabled: true,
     targetLang: '简体中文',
     courseContext: '',
     glossary: '',
@@ -107,6 +119,15 @@ globalThis.NTUSUB = (() => {
 
   const isBasic = (s) => s.provider === BASIC_PROVIDER;
 
+  // The dedicated notes / chat model as { provider, cfg }, or null when it is not configured.
+  function assistOf(s) {
+    const a = s.assist || {};
+    if (!AI_PROVIDERS.includes(a.provider) || !(a.model || '').trim()) return null;
+    const { provider, ...cfg } = a;
+    if (!cfg.baseUrl) cfg.baseUrl = DEFAULTS.providers[provider].baseUrl;
+    return { provider, cfg };
+  }
+
   // Target-language names offered in the options page → Google Translate codes.
   const GOOGLE_LANGS = {
     '简体中文': 'zh-CN', '繁體中文': 'zh-TW', '日本語': 'ja', '한국어': 'ko',
@@ -133,6 +154,6 @@ globalThis.NTUSUB = (() => {
 
   return {
     PROMPT_VERSION, BASIC_PROVIDER, AI_PROVIDERS, DEFAULTS, PROVIDER_LABELS,
-    merge, hash, getSettings, saveSettings, sigOf, isBasic, googleLang
+    merge, hash, getSettings, saveSettings, sigOf, isBasic, assistOf, googleLang
   };
 })();

@@ -155,7 +155,7 @@ globalThis.NotesView = (() => {
   }
 
   async function genChunk(ci, signal) {
-    const { provider, cfg } = P.aiConfig();
+    const { provider, cfg } = P.assistConfig();
     let partial = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       const raw = L.fixTexEscapes(await L.streamModel(provider, cfg, systemPrompt(), chunkPrompt(ci),
@@ -179,7 +179,7 @@ globalThis.NotesView = (() => {
   }
 
   async function genOverview(signal) {
-    const { provider, cfg } = P.aiConfig();
+    const { provider, cfg } = P.assistConfig();
     const raw = L.fixTexEscapes(await L.streamModel(provider, cfg, systemPrompt(), overviewPrompt(), () => {}, { json: true, signal, maxTokens: MAX_TOKENS }));
     const j = L.extractJson(raw) || {};
     return {
@@ -206,14 +206,14 @@ globalThis.NotesView = (() => {
     overviewState = '';
     storeKey = null;
     const st = P.transcriptState();
-    if (!st.ready || !P.isAI()) { render(); return; }
+    if (!st.ready || !P.isAI() || !P.notesOn()) { render(); return; }
     chunks = makeChunks(P.S.cues);
     const lang = P.S.settings.targetLang;
     storeKey = P.lectureKey('n') + ':' + N.hash(lang);
     const sig = N.hash(chunks.map((c) => c.from + '-' + c.to).join(','));
     const saved = await P.store.get(storeKey);
     data = saved && saved.v === NOTES_VERSION && saved.sig === sig ? saved
-      : { v: NOTES_VERSION, sig, lang, model: P.aiConfig().cfg.model, chunks: {}, overview: null, createdAt: Date.now() };
+      : { v: NOTES_VERSION, sig, lang, model: P.assistConfig().cfg.model, chunks: {}, overview: null, createdAt: Date.now() };
     render();
     if (visible) generate();
   }
@@ -225,13 +225,13 @@ globalThis.NotesView = (() => {
   }
 
   async function generate() {
-    if (job || !data || !P.isAI() || (complete() && data.overview)) return;
+    if (job || !data || !P.isAI() || !P.notesOn() || (complete() && data.overview)) return;
     const ctrl = new AbortController();
     const myJob = { ctrl };
     job = myJob;
     failed.clear();
     const key = storeKey;
-    data.model = P.aiConfig().cfg.model;
+    data.model = P.assistConfig().cfg.model;
     // Start with the part being watched, then continue forward, then fill in earlier parts.
     const now = P.currentTime();
     let cur = chunks.findIndex((c) => now < c.end);
@@ -279,7 +279,7 @@ globalThis.NotesView = (() => {
     if (!data) return;
     if (!confirm('重新生成整节课的笔记？已有笔记会被替换，并重新消耗 API 额度。')) return;
     cancelJob();
-    data = { ...data, chunks: {}, overview: null, createdAt: Date.now(), model: P.aiConfig().cfg.model };
+    data = { ...data, chunks: {}, overview: null, createdAt: Date.now(), model: P.assistConfig().cfg.model };
     overviewState = '';
     await P.store.remove(storeKey);
     render();
@@ -479,7 +479,7 @@ pre{background:#15202e;color:#eef3fb;padding:12px;border-radius:8px;overflow:aut
     let lastKey = '';
     const refresh = () => {
       const st = P.transcriptState();
-      const key = st.ready && P.isAI() ? `${P.S.info.trackId}|${P.S.cues.length}|${P.S.settings.targetLang}` : '';
+      const key = st.ready && P.isAI() && P.notesOn() ? `${P.S.info.trackId}|${P.S.cues.length}|${P.S.settings.targetLang}` : '';
       if (key !== lastKey) { lastKey = key; loadForLecture(); }
       else if (!data) render();
     };

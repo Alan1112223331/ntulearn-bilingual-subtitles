@@ -120,7 +120,9 @@ button:disabled { opacity: .5; cursor: default; }
 .badge.rec { background: var(--accent); color: #fff; border-color: var(--accent); }
 .ai-only-note { font-size: 13px; color: var(--muted); background: var(--soft); border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; }
 .ai-only-note[hidden] { display: none; }
-#aiOnlyOpts.dim { opacity: .55; }
+#aiOnlyOpts.dim, #assistCard.dim > :not(h2):not(.ai-only-note) { opacity: .55; }
+h3.sub { font-size: 14px; margin: 18px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+h3.sub .ok { color: var(--ok); font-weight: 600; }
 
 .tabs { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
 .tabs button { border: 0; border-radius: 0; background: transparent; padding: 9px 0; }
@@ -168,4 +170,4 @@ summary { cursor: pointer; color: var(--muted); margin-bottom: 10px; user-select
 .embed .savebar { padding: 10px 12px; }
 .embed .savebar button { min-width: 0; flex: 1; }
 .embed .inline { flex-wrap: wrap; }
-.embed #fetchModels { flex: 1 0 auto; }
+.embed #fetchModels, .embed .fetch-models { flex: 1 0 auto; }

@@ -45,6 +45,9 @@ globalThis.Panel = (() => {
     return N.AI_PROVIDERS.includes(s.provider) && !!(cfg && cfg.baseUrl && cfg.model);
   };
   const aiConfig = () => ({ provider: S.settings.provider, cfg: S.settings.providers[S.settings.provider] });
+  // Notes and chat use the dedicated model when one is configured.
+  const assistConfig = () => N.assistOf(S.settings) || aiConfig();
+  const notesOn = () => S.settings.notesEnabled !== false;
 
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area === 'local' && ch.settings) {
@@ -135,6 +138,7 @@ globalThis.Panel = (() => {
 
   async function init() {
     S.settings = await N.getSettings();
+    emit('settings');
     try {
       const win = await chrome.windows.getCurrent();
       S.windowId = win.id;
@@ -260,7 +264,7 @@ globalThis.Panel = (() => {
   }
 
   return {
-    S, on, emit, init, fmt, parseTime, esc, isAI, aiConfig, currentTime, cueIndexAt, seek, post,
+    S, on, emit, init, fmt, parseTime, esc, isAI, aiConfig, assistConfig, notesOn, currentTime, cueIndexAt, seek, post,
     transcriptState, transcriptText, lectureTitle, store, lectureKey, download, safeName, follower
   };
 })();

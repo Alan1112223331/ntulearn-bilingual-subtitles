@@ -11,7 +11,7 @@
 
   // ------------------------------------------------------------------ tabs
   function show(tab) {
-    if (!(tab in views)) tab = 'transcript';
+    if (!(tab in views) || (tab === 'notes' && !P.notesOn())) tab = 'transcript';
     if (current && views[current] && views[current].onHide) views[current].onHide();
     current = tab;
     document.querySelectorAll('.tabs button').forEach((b) => {
@@ -36,6 +36,12 @@
       document.querySelector(`.tabs [data-tab="${tab}"]`).classList.toggle('needs-ai', !ai);
     }
     if (current && AI_ONLY.includes(current) && ai && views[current].onShow) views[current].onShow();
+  }
+
+  // Notes can be switched off in the settings: the tab disappears and nothing is generated.
+  function applyNotesSwitch() {
+    document.querySelector('.tabs [data-tab="notes"]').hidden = !P.notesOn();
+    if (current === 'notes' && !P.notesOn()) show('transcript');
   }
 
   // ---------------------------------------------------------------- header
@@ -95,11 +101,12 @@
     P.on('state', updateHeader);
     P.on('trans', updateHeader);
     P.on('status', updateHeader);
-    P.on('settings', () => { updateHeader(); applyLocks(); });
+    P.on('settings', () => { updateHeader(); applyNotesSwitch(); applyLocks(); });
 
     let saved = null;
     try { saved = localStorage.getItem('ntusub-tab'); } catch (e) { /* ignore */ }
     show(saved || 'transcript');
+    applyNotesSwitch();
     applyLocks();
     updateHeader();
     requestAnimationFrame(frame);

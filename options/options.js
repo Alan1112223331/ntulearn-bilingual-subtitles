@@ -47,6 +47,9 @@ function showEngine() {
   $('#aiPanel').hidden = engine !== 'ai';
   $('#aiOnlyNote').hidden = engine !== 'basic';
   $('#aiOnlyOpts').classList.toggle('dim', engine === 'basic');
+  $('#assistNote').hidden = engine !== 'basic';
+  $('#assistCard').classList.toggle('dim', engine === 'basic');
+  $('#clearProvider').hidden = engine === 'basic';
   $('#testResult').innerHTML = '';
 }
 
@@ -70,10 +73,10 @@ function fillProviderForm() {
 
 // ------------------------------------------------------------- model picker
 // Text input with a themed dropdown. Opening it shows the full list; typing filters it.
-const modelPicker = (() => {
-  const combo = $('#modelCombo');
-  const input = $('#model');
-  const menu = $('#modelMenu');
+function createModelPicker(ids) {
+  const combo = $(ids.combo);
+  const input = $(ids.input);
+  const menu = $(ids.menu);
   let models = [];
   let shown = [];
   let active = -1;
@@ -174,9 +177,9 @@ const modelPicker = (() => {
       close();
     }
   });
-  $('#modelToggle').addEventListener('click', () => {
+  $(ids.toggle).addEventListener('click', () => {
     if (isOpen()) { close(); return; }
-    if (!open(false)) $('#fetchModels').click();
+    if (!open(false)) $(ids.fetch).click();
     else input.focus();
   });
   menu.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the input
@@ -190,12 +193,76 @@ const modelPicker = (() => {
     setModels(list) { models = list; if (!list.length) close(); },
     open: () => open(false)
   };
-})();
+}
+
+const modelPicker = createModelPicker({ combo: '#modelCombo', input: '#model', menu: '#modelMenu', toggle: '#modelToggle', fetch: '#fetchModels' });
+const assistPicker = createModelPicker({ combo: '#aModelCombo', input: '#aModel', menu: '#aModelMenu', toggle: '#aModelToggle', fetch: '#aFetchModels' });
+
+// ------------------------------------------------------- notes & chat model
+// Form ids of the optional dedicated model, by settings field.
+const ASSIST_IDS = { baseUrl: '#aBaseUrl', apiKey: '#aApiKey', model: '#aModel', temperature: '#aTemperature', extraHeaders: '#aExtraHeaders', extraBody: '#aExtraBody' };
+
+let aCur = 'openai'; // selected format of the dedicated model
+
+function readAssistForm() {
+  draft.assist.provider = aCur;
+  for (const f in ASSIST_IDS) draft.assist[f] = $(ASSIST_IDS[f]).value.trim();
+}
+
+function fillAssistForm() {
+  const a = draft.assist;
+  aCur = N.AI_PROVIDERS.includes(a.provider) ? a.provider : 'openai';
+  for (const f in ASSIST_IDS) $(ASSIST_IDS[f]).value = a[f] ?? '';
+  updateAssistForm();
+}
+
+// Format tabs, hint and placeholders follow the chosen format; the heading says whether the model is in use.
+function updateAssistForm() {
+  const p = aCur;
+  document.querySelectorAll('#aProviderTabs button').forEach((b) => b.classList.toggle('on', b.dataset.p === p));
+  $('#aProviderHint').textContent = HINTS[p];
+  $('#aBaseUrl').placeholder = N.DEFAULTS.providers[p].baseUrl;
+  $('#aExtraBody').placeholder = '例如 ' + BODY_PLACEHOLDER[p];
+  $('#aModel').placeholder = `留空 = 使用上面的翻译模型（如 ${MODEL_EXAMPLES[p]}）`;
+  const model = $('#aModel').value.trim();
+  $('#assistState').innerHTML = model ? `<span class="ok">已启用</span> · 笔记与问答使用 ${esc(model)}` : '未配置 · 笔记与问答使用上面的翻译模型';
+}
+
+function assistCfg() {
+  readAssistForm();
+  const { provider, ...cfg } = draft.assist;
+  if (!cfg.baseUrl) cfg.baseUrl = N.DEFAULTS.providers[provider].baseUrl;
+  return { provider, cfg };
+}
+
+// Fetches the model list of a provider config into a picker; shared by both model fields.
+async function fetchModels(picker, btn, input, resultEl, provider, cfg, perm) {
+  btn.disabled = true;
+  btn.textContent = '获取中…';
+  await perm;
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'ntusub-models', provider, cfg });
+    if (!res.ok) throw new Error(res.error);
+    picker.setModels(res.models);
+    resultEl.innerHTML = res.models.length
+      ? `<span class="ok">获取到 ${res.models.length} 个模型</span>，已展开列表，可输入关键字筛选。`
+      : '<span class="err">接口没有返回任何模型</span>，可直接手动输入模型名。';
+    input.focus();
+    picker.open();
+  } catch (e) {
+    resultEl.innerHTML = `<span class="err">获取模型列表失败：${esc(e.message)}</span><div class="muted small">部分代理不支持列出模型，可直接手动输入模型名。</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '获取模型列表';
+  }
+}
 
 // ------------------------------------------------------------------ general
 function fillForm() {
   fillProviderForm();
+  fillAssistForm();
   showEngine();
+  $('#notesEnabled').checked = draft.notesEnabled !== false;
   const lang = draft.targetLang;
   if (PRESET_LANGS.includes(lang)) {
     $('#targetLang').value = lang;
@@ -223,6 +290,8 @@ function fillForm() {
 
 function readForm() {
   readProviderForm();
+  readAssistForm();
+  draft.notesEnabled = $('#notesEnabled').checked;
   draft.provider = activeProvider();
   draft.aiProvider = cur;
   const sel = $('#targetLang').value;
@@ -270,10 +339,13 @@ function updatePreview() {
 
 // -------------------------------------------------------------- permissions
 // Must be called synchronously inside a click handler (user gesture).
-function requestOrigin(baseUrl) {
-  let origin;
-  try { origin = new URL(baseUrl || N.DEFAULTS.providers[cur].baseUrl).origin; } catch (e) { return Promise.resolve(false); }
-  return chrome.permissions.request({ origins: [origin + '/*'] }).catch(() => false);
+function requestOrigin(...baseUrls) {
+  const origins = [];
+  for (const u of baseUrls) {
+    try { origins.push(new URL(u || N.DEFAULTS.providers[cur].baseUrl).origin + '/*'); } catch (e) { /* skip */ }
+  }
+  if (!origins.length) return Promise.resolve(false);
+  return chrome.permissions.request({ origins: [...new Set(origins)] }).catch(() => false);
 }
 
 function currentCfg() {
@@ -324,27 +396,68 @@ async function init() {
     el.addEventListener('change', () => { markDirty(); updatePreview(); });
   });
 
-  $('#fetchModels').addEventListener('click', async () => {
+  $('#fetchModels').addEventListener('click', () => {
     const cfg = currentCfg();
     const perm = requestOrigin(cfg.baseUrl);
-    const btn = $('#fetchModels');
+    fetchModels(modelPicker, $('#fetchModels'), $('#model'), $('#testResult'), cur, cfg, perm);
+  });
+
+  $('#clearProvider').addEventListener('click', () => {
+    if (!confirm(`清空「${N.PROVIDER_LABELS[cur]}」的接口地址、API Key、模型名称和高级参数？保存后生效。`)) return;
+    for (const f of PROVIDER_FIELDS) $('#' + f).value = '';
+    modelPicker.setModels([]);
+    $('#testResult').innerHTML = '<span class="muted">已清空，点「保存设置」后生效。</span>';
+    markDirty();
+  });
+
+  // ---- notes & chat model
+  document.querySelectorAll('#aProviderTabs button').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.p === aCur) return;
+    aCur = b.dataset.p;
+    assistPicker.setModels([]);
+    updateAssistForm();
+    markDirty();
+  }));
+  $('#aModel').addEventListener('input', updateAssistForm);
+  $('#aToggleKey').addEventListener('click', () => {
+    const k = $('#aApiKey');
+    k.type = k.type === 'password' ? 'text' : 'password';
+    $('#aToggleKey').textContent = k.type === 'password' ? '显示' : '隐藏';
+  });
+  $('#aFetchModels').addEventListener('click', () => {
+    const { provider, cfg } = assistCfg();
+    const perm = requestOrigin(cfg.baseUrl);
+    fetchModels(assistPicker, $('#aFetchModels'), $('#aModel'), $('#aTestResult'), provider, cfg, perm);
+  });
+  $('#aClear').addEventListener('click', () => {
+    if (!confirm('清空笔记与问答的专用模型配置？保存后笔记与问答改用上面的翻译模型。')) return;
+    aCur = N.DEFAULTS.assist.provider;
+    for (const f in ASSIST_IDS) $(ASSIST_IDS[f]).value = '';
+    assistPicker.setModels([]);
+    updateAssistForm();
+    $('#aTestResult').innerHTML = '<span class="muted">已清空，点「保存设置」后生效。</span>';
+    markDirty();
+  });
+  $('#aTest').addEventListener('click', async () => {
+    const { provider, cfg } = assistCfg();
+    const out = $('#aTestResult');
+    if (!cfg.model) { out.innerHTML = '<span class="err">请先填写模型名称</span>'; return; }
+    const perm = requestOrigin(cfg.baseUrl);
+    const btn = $('#aTest');
     btn.disabled = true;
-    btn.textContent = '获取中…';
+    out.innerHTML = '<span class="muted">正在请求模型…</span>';
     await perm;
     try {
-      const res = await chrome.runtime.sendMessage({ type: 'ntusub-models', provider: cur, cfg });
+      const settingsDraft = structuredClone(draft);
+      settingsDraft.providers[provider] = cfg;
+      const res = await chrome.runtime.sendMessage({ type: 'ntusub-test', provider, settings: settingsDraft });
       if (!res.ok) throw new Error(res.error);
-      modelPicker.setModels(res.models);
-      $('#testResult').innerHTML = res.models.length
-        ? `<span class="ok">获取到 ${res.models.length} 个模型</span>，已展开列表，可输入关键字筛选。`
-        : '<span class="err">接口没有返回任何模型</span>，可直接手动输入模型名。';
-      $('#model').focus();
-      modelPicker.open();
+      out.innerHTML = `<span class="ok">连接成功</span> <span class="muted">· ${res.ms} ms</span>` +
+        res.lines.map((l) => `<div class="pair">${esc(l.tr || '（无）')}<div class="muted small">${esc(l.src)}</div></div>`).join('');
     } catch (e) {
-      $('#testResult').innerHTML = `<span class="err">获取模型列表失败：${esc(e.message)}</span><div class="muted small">部分代理不支持列出模型，可直接手动输入模型名。</div>`;
+      out.innerHTML = `<span class="err">失败：${esc(e.message)}</span>`;
     } finally {
       btn.disabled = false;
-      btn.textContent = '获取模型列表';
     }
   });
 
@@ -377,9 +490,12 @@ async function init() {
 
   $('#save').addEventListener('click', async () => {
     const cfg = currentCfg();
-    const perm = engine === 'basic' ? Promise.resolve(true) : requestOrigin(cfg.baseUrl);
+    const assist = assistCfg();
+    const perm = engine === 'basic' ? Promise.resolve(true)
+      : (assist.cfg.model ? requestOrigin(cfg.baseUrl, assist.cfg.baseUrl) : requestOrigin(cfg.baseUrl));
     readForm();
-    for (const [name, v] of [['额外请求头', draft.providers[cur].extraHeaders], ['额外请求体', draft.providers[cur].extraBody]]) {
+    for (const [name, v] of [['额外请求头', draft.providers[cur].extraHeaders], ['额外请求体', draft.providers[cur].extraBody],
+      ['专用模型的额外请求头', draft.assist.extraHeaders], ['专用模型的额外请求体', draft.assist.extraBody]]) {
       if (v && v.trim()) {
         try { JSON.parse(v); } catch (e) { $('#saveMsg').textContent = `${name} 不是合法 JSON，未保存`; return; }
       }
