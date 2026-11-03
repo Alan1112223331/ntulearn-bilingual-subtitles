@@ -1,0 +1,22 @@
+{
+  "extName": {
+    "message": "Bilingual Subtitles for NTULearn (Unofficial)",
+    "description": "Extension name shown in the browser and the Chrome Web Store."
+  },
+  "extShortName": {
+    "message": "NTU Subtitles"
+  },
+  "extDescription": {
+    "message": "Bilingual subtitles for NTULearn Media Gallery lectures, plus a side panel with transcript, AI notes and Q&A. Unofficial tool.",
+    "description": "At most 132 characters."
+  },
+  "actionTitle": {
+    "message": "NTULearn Subtitles · Open side panel"
+  },
+  "cmdToggle": {
+    "message": "Turn bilingual subtitles on / off"
+  },
+  "cmdCycleMode": {
+    "message": "Switch display mode (bilingual / translation / original)"
+  }
+}

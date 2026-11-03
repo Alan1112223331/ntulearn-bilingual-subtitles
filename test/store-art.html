@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>store art</title>
+<!--
+  Chrome Web Store images, rendered with headless Edge (see docs/store/LISTING.md):
+    ?shot=settings  1280x800  settings screenshot (options page with demo values)
+    ?shot=small     440x280   small promo tile
+    ?shot=marquee   1400x560  marquee promo tile
+  The settings shot needs the generated options/_harness.html (python test/make_harness.py).
+-->
+<style>
+  :root { --bg: #14161b; --card: #1b1e25; --fg: #e8eaf0; --muted: #959cae; --line: #2f3440; --accent: #ff5a6e; --deep: #c8102e; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(120% 140% at 0% 0%, #2a1d24 0%, var(--bg) 55%), var(--bg);
+    color: var(--fg); overflow: hidden;
+    font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  }
+  section { display: none; position: relative; width: 100%; height: 100%; box-sizing: border-box; }
+  .settings #settings, .small #small, .marquee #marquee { display: flex; }
+  /* Fixed sizes: headless browsers enforce a minimum window width wider than the small tile. */
+  #settings { width: 1280px; height: 800px; } #small { width: 440px; height: 280px; } #marquee { width: 1400px; height: 560px; }
+  .tag { display: inline-block; font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  h1, h2, p { margin: 0; }
+
+  /* settings */
+  #settings { align-items: center; gap: 56px; padding: 0 0 0 72px; }
+  #settings .copy { flex: 1; }
+  #settings h2 { font-size: 40px; line-height: 1.3; font-weight: 700; letter-spacing: .5px; }
+  #settings h2 em { font-style: normal; color: var(--accent); }
+  #settings ul { margin: 28px 0 0; padding: 0; list-style: none; font-size: 19px; line-height: 1.6; color: #c9cdd8; }
+  #settings li { position: relative; padding-left: 22px; margin-bottom: 12px; }
+  #settings li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  #settings .frame { width: 660px; height: 100%; border-left: 1px solid var(--line); box-shadow: -30px 0 60px rgba(0,0,0,.35); }
+  #settings iframe { border: 0; width: 100%; height: 100%; display: block; }
+
+  /* small promo tile */
+  #small { flex-direction: column; justify-content: center; padding: 0 34px; }
+  #small .row { display: flex; align-items: center; gap: 18px; }
+  #small img { width: 84px; height: 84px; margin: -10px; }
+  #small h1 { font-size: 34px; font-weight: 800; line-height: 1.15; }
+  #small p { margin-top: 22px; font-size: 19px; color: #c9cdd8; letter-spacing: 1px; }
+  #small .tag { position: absolute; right: 18px; bottom: 16px; font-size: 12px; }
+
+  /* marquee */
+  #marquee { align-items: center; padding-left: 96px; }
+  #marquee .copy { width: 560px; flex: none; }
+  #marquee .row { display: flex; align-items: center; gap: 20px; }
+  #marquee .row img { width: 96px; height: 96px; margin: -12px; }
+  #marquee h1 { font-size: 46px; font-weight: 800; }
+  #marquee p { margin-top: 26px; font-size: 24px; line-height: 1.6; color: #c9cdd8; }
+  #marquee .tag { margin-top: 30px; font-size: 14px; }
+  #marquee .shot {
+    position: absolute; left: 720px; top: 70px; width: 860px; border-radius: 14px; overflow: hidden;
+    border: 1px solid #3a3f4c; box-shadow: 0 30px 80px rgba(0,0,0,.55);
+  }
+  #marquee .shot img { display: block; width: 100%; }
+</style>
+<script>
+  // Demo settings for the options page: an OpenAI-format model for subtitles and a signed-in
+  // ChatGPT plan for notes and chat. All values are placeholders.
+  window.__ntusubBus = {
+    mem: {
+      settings: {
+        provider: 'openai', aiProvider: 'openai',
+        providers: { openai: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'demo-key-not-real-0000000', model: 'deepseek-v4-flash' } },
+        assist: { provider: 'chatgpt', model: 'gpt-6.1-sol' },
+        notesEnabled: true
+      }
+    },
+    cgpt: { signedIn: true, email: 'student@example.com', plan: 'plus' },
+    changeL: [], tabMsgL: [], connectL: [], log: [],
+    clone: (x) => (x === undefined ? x : JSON.parse(JSON.stringify(x)))
+  };
+</script>
+</head>
+<body>
+<section id="settings">
+  <div class="copy">
+    <h2>用自己的大模型<br>或 <em>ChatGPT 订阅</em></h2>
+    <ul>
+      <li>OpenAI / Anthropic / Gemini 三种接口格式，兼容 DeepSeek、通义千问等</li>
+      <li>登录一次 ChatGPT，翻译和笔记问答都能用订阅额度</li>
+      <li>笔记和问答可单独配一个更强的模型</li>
+      <li>Key 和登录凭证只保存在你的浏览器里</li>
+    </ul>
+  </div>
+  <div class="frame"><iframe id="opt"></iframe></div>
+</section>
+
+<section id="small">
+  <div class="row"><img src="../icons/icon128.png" alt=""><h1>NTULearn<br>双语字幕</h1></div>
+  <p>AI 翻译 · 课堂笔记 · 问答</p>
+  <span class="tag">非官方</span>
+</section>
+
+<section id="marquee">
+  <div class="copy">
+    <div class="row"><img src="../icons/icon128.png" alt=""><h1>NTULearn 双语字幕</h1></div>
+    <p>课程视频的中英双语字幕，<br>侧边栏里有逐段译文、AI 课堂笔记和问答。</p>
+    <span class="tag">非官方 · 开源 · 数据只保存在本机</span>
+  </div>
+  <div class="shot"><img src="../docs/images/sidepanel.png" alt=""></div>
+</section>
+<script>
+  const shot = new URLSearchParams(location.search).get('shot') || 'settings';
+  document.body.classList.add(shot);
+  if (shot === 'settings') {
+    const f = document.getElementById('opt');
+    f.addEventListener('load', () => setTimeout(() => f.contentWindow.scrollTo(0, 0), 300));
+    f.src = '../options/_harness.html';
+  }
+</script>
+</body></html>

@@ -1,0 +1,22 @@
+{
+  "extName": {
+    "message": "NTULearn 双语字幕 · AI 翻译与笔记（非官方）",
+    "description": "Extension name shown in the browser and the Chrome Web Store."
+  },
+  "extShortName": {
+    "message": "NTU 双语字幕"
+  },
+  "extDescription": {
+    "message": "为 NTULearn Media Gallery 课程视频生成双语字幕，侧边栏提供逐段译文、AI 课堂笔记和问答。免配置即用，也可接入自己的大模型或 ChatGPT 订阅。非官方工具。",
+    "description": "At most 132 characters."
+  },
+  "actionTitle": {
+    "message": "NTU 双语字幕 · 打开侧边栏"
+  },
+  "cmdToggle": {
+    "message": "开启 / 关闭双语字幕"
+  },
+  "cmdCycleMode": {
+    "message": "切换显示模式（双语 / 仅译文 / 仅原文）"
+  }
+}

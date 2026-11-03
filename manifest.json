@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "NTULearn 双语字幕 AI 翻译",
-  "short_name": "NTU 双语字幕",
-  "version": "1.4.0",
-  "description": "为 NTULearn Media Gallery (Kaltura) 视频生成双语字幕，并在侧边栏提供逐段译文、AI 课堂笔记与课程问答。免配置基础模式开箱即用，也可接入 OpenAI / Anthropic / Gemini 格式大模型。",
+  "name": "__MSG_extName__",
+  "short_name": "__MSG_extShortName__",
+  "version": "1.4.1",
+  "default_locale": "zh_CN",
+  "description": "__MSG_extDescription__",
   "author": "Alan_m-12",
   "homepage_url": "https://github.com/Alan1112223331/ntulearn-bilingual-subtitles",
   "minimum_chrome_version": "116",
@@ -14,7 +15,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "NTU 双语字幕 · 打开侧边栏",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
@@ -75,13 +76,13 @@
       "suggested_key": {
         "default": "Alt+Shift+S"
       },
-      "description": "开启 / 关闭双语字幕"
+      "description": "__MSG_cmdToggle__"
     },
     "cycle-mode": {
       "suggested_key": {
         "default": "Alt+Shift+M"
       },
-      "description": "切换显示模式（双语 / 仅译文 / 仅原文）"
+      "description": "__MSG_cmdCycleMode__"
     }
   }
 }
