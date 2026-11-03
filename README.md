@@ -24,20 +24,21 @@
 
 - **两种翻译引擎，按需选择**
   - **基础模式（默认，免配置）**：使用 Google 翻译，安装后打开视频就有双语字幕，不需要任何 API Key
-  - **AI 精准模式（推荐）**：接入你自己的大模型，结合上下文、*课程背景* 和 *术语表* 翻译，提示词针对语音识别字幕（断句、识别错误）专门优化，专业名词明显更准确
+  - **AI 精准模式（推荐）**：接入你自己的大模型，或直接登录 **ChatGPT 用订阅额度**（不需要 API Key），结合上下文、*课程背景* 和 *术语表* 翻译，提示词针对语音识别字幕（断句、识别错误）专门优化，专业名词明显更准确
 - **无延迟**：拿到字幕后立即从当前播放位置开始并发预翻译**整部视频**；拖动进度条时自动优先翻译新位置；结果按视频缓存在本地，重复观看即时显示
-- **AI 接口完全自定义**：OpenAI Chat Completions、Anthropic Messages、Gemini generateContent 三种格式，Base URL / API Key / 模型名均可自定义，兼容 DeepSeek、通义千问、OpenRouter、one-api / new-api 等中转
+- **AI 接口完全自定义**：OpenAI Chat Completions、Anthropic Messages、Gemini generateContent 三种格式，Base URL / API Key / 模型名均可自定义，兼容 DeepSeek、通义千问、OpenRouter、one-api / new-api 等中转；也可以选 **ChatGPT 订阅**，用 OpenAI 官方的 Sign in with ChatGPT 登录一次即可
+- **笔记与问答可单独配模型**：例如便宜的模型做字幕翻译、更强的模型做笔记和问答；两处都用 ChatGPT 订阅时共用同一个登录
 - **清晰的双语显示**：自绘字幕层随视频逐帧同步，字号随播放器尺寸自适应；支持全屏、鼠标拖动调整位置、隐藏播放器原字幕；双语 / 仅译文 / 仅原文三种模式
 - **侧边栏**：点击扩展图标打开，四个页面随时切换，都会跟着视频播放位置走
   - **译文**：整节课按段落排版，当前这句高亮并自动滚动；点任意一句跳到视频对应位置；导出双语 SRT / 文稿
-  - **笔记**（AI 模式）：根据整节课字幕自动生成按知识点组织的笔记，每个知识点有要点、例子、老师强调（带时间戳）、术语和"非课堂原话"的补充说明，最后附本节概览和自测题；正在讲的知识点会高亮并自动滚动到位；可导出 Markdown / 网页
+  - **笔记**（AI 模式）：根据整节课字幕自动生成按知识点组织的笔记，每个知识点有要点、例子、老师强调（带时间戳）、术语和"非课堂原话"的补充说明，最后附本节概览和自测题；公式用 KaTeX 正常排版；正在讲的知识点会标出"正在讲"并自动滚动到位；可导出 Markdown / 网页；不需要时可在设置里关闭，关闭后不显示、也不消耗额度
   - **对话**（AI 模式）：像普通 AI 对话一样提问，AI 知道整节课的内容和你正在看的位置，回答里引用的时间点可以点击跳转
   - **设置**：就是完整的设置页
 - 快捷键：`Alt+Shift+S` 开关视频字幕，`Alt+Shift+M` 切换显示模式
 
 <table>
 <tr>
-<td width="33%"><img src="docs/images/panel-notes.png" alt="侧边栏 · 笔记"><p align="center"><sub>笔记：跟随播放高亮当前知识点</sub></p></td>
+<td width="33%"><img src="docs/images/panel-notes.png" alt="侧边栏 · 笔记"><p align="center"><sub>笔记：跟随播放高亮当前知识点，公式正常排版</sub></p></td>
 <td width="33%"><img src="docs/images/panel-chat.png" alt="侧边栏 · 对话"><p align="center"><sub>对话：结合课程内容和当前位置回答</sub></p></td>
 <td width="33%"><img src="docs/images/panel-transcript.png" alt="侧边栏 · 译文"><p align="center"><sub>译文：段落排版，高亮当前这句</sub></p></td>
 </tr>
@@ -87,7 +88,7 @@
 - **测试连接**：翻译一段示例字幕，验证接口和输出格式
 - 保存时浏览器会请求该接口域名的访问权限，请点 **允许**
 - **高级参数**：Temperature（推理模型请留空）、额外请求头、额外请求体（JSON，深度合并进请求，例如 `{"reasoning_effort":"low"}`）
-- 建议选速度快的非推理模型；填写 **课程/学科背景**（如 “EE6406 集成学习”）和 **术语表**（每行 `英文 = 译文`），专业名词更准确
+- 建议翻译选速度快的非推理模型；填写 **课程/学科背景**（如 “机器学习：集成学习、随机森林”）和 **术语表**（每行 `英文 = 译文`），专业名词更准确
 
 <br clear="right">
 
@@ -113,7 +114,7 @@ NTULearn (Blackboard Ultra)
    └─ Kaltura PlayKit 播放器              ← 扩展在这一层工作
       ├─ inject.js   页面主环境：监听播放器的 fetch / XHR，截获字幕
       └─ content.js  隔离环境：解析字幕 → 调度翻译 → 绘制双语字幕层
-            ├─ background.js  调用 Google 翻译（基础模式）或大模型 API（AI 模式，Key 不暴露给网页）
+            ├─ background.js  调用 Google 翻译（基础模式）或大模型 API（AI 模式，Key 不暴露给网页）；统一管理 ChatGPT 登录与令牌刷新
             └─ 侧边栏          通过端口实时接收字幕、译文和播放进度，发送跳转指令
 ```
 
@@ -140,6 +141,7 @@ src/
   background.js   字幕翻译提示词与结果解析、Google 翻译、缓存 LRU
 sidepanel/        侧边栏：panel.js 连接与状态，transcript / notes / chat 三个页面，md.js 安全的 Markdown 渲染
 options/          设置页（也嵌入在侧边栏的"设置"页）
+vendor/katex/     公式排版库 KaTeX（MIT）
 icons/
 test/             本地调试页面（用桩 chrome API 加载真实内容脚本）
 docs/images/      README 截图
@@ -173,7 +175,7 @@ python -m http.server 8765
 
 ## ⚠️ 免责声明
 
-本项目为个人开源工具，与南洋理工大学（NTU）、Kaltura、Blackboard、Google 及各模型服务商均无关联。基础模式使用的是 Google 翻译的公开免费接口，不保证长期可用；若失效请切换到 AI 精准模式。课程视频与字幕的版权归其所有者，请仅用于个人学习。
+本项目为个人开源工具，与南洋理工大学（NTU）、Kaltura、Blackboard、Google、OpenAI 及各模型服务商均无关联。基础模式使用的是 Google 翻译的公开免费接口，不保证长期可用；若失效请切换到 AI 精准模式。课程视频与字幕的版权归其所有者，请仅用于个人学习。
 
 ## 📄 License
 
