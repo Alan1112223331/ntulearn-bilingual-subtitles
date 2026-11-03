@@ -1,4 +1,5 @@
-// Shared LLM client for the three supported API formats (OpenAI / Anthropic / Gemini).
+// Shared LLM client for the supported API formats (OpenAI / Anthropic / Gemini, and the
+// user's ChatGPT subscription through the Responses API).
 // Used by the background worker (subtitle translation) and the side panel (chat, notes).
 // Requires shared.js (globalThis.NTUSUB) to be loaded first.
 globalThis.NTUSUB_LLM = (() => {
@@ -14,9 +15,15 @@ globalThis.NTUSUB_LLM = (() => {
 
   const trimUrl = (u) => String(u || '').trim().replace(/\/+$/, '');
 
+  // "chatgpt" requests carry an OAuth access token from Sign in with ChatGPT. The background
+  // worker owns the token (see chatgpt.js); other pages fetch it from there.
+  let tokenProvider = null;
+  const setTokenProvider = (fn) => { tokenProvider = fn; };
+
   // kind: 'chat' | 'stream' | 'models'
   function endpoint(provider, cfg, kind) {
     const b = trimUrl(cfg.baseUrl);
+    if (provider === 'chatgpt') return kind === 'models' ? 'https://api.openai.com/v1/models' : 'https://api.openai.com/v1/responses';
     if (provider === 'openai') {
       const root = b.replace(/\/(chat\/completions|models)$/, '');
       return kind === 'models' ? root + '/models' : root + '/chat/completions';
@@ -60,10 +67,31 @@ globalThis.NTUSUB_LLM = (() => {
     return Object.assign(h, parseJsonField(cfg.extraHeaders, '额外请求头'));
   }
 
+  async function requestHeaders(provider, cfg) {
+    if (provider !== 'chatgpt') return headersFor(provider, cfg);
+    if (!tokenProvider) throw new ApiError('ChatGPT 登录不可用', true);
+    let token;
+    try { token = await tokenProvider(); } catch (e) { throw new ApiError(e.message, e.fatal !== false); }
+    return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
+  }
+
+  // Errors of ChatGPT plan usage (Sign in with ChatGPT "Errors and recovery").
+  function chatgptError(code, message, status) {
+    if (/usage_limit_exceeded/.test(code)) {
+      return new ApiError('ChatGPT 套餐额度已用完（也可能是给本扩展设的额度上限），可在 ChatGPT 设置 → 用量中查看和调整', true);
+    }
+    if (/subscription_sharing_(usage|user)_unavailable/.test(code)) return new ApiError('ChatGPT 暂时无法确认套餐用量，稍后会自动重试');
+    if (/invalid_user/.test(code) || status === 401) {
+      return new ApiError('ChatGPT 授权未通过（可能已在 ChatGPT 设置中断开本扩展），请在设置里重新登录' + (message ? '：' + message : ''), true);
+    }
+    return null;
+  }
+
   function checkConfig(provider, cfg) {
     if (!cfg || !N.AI_PROVIDERS.includes(provider)) throw new ApiError('当前不是 AI 精准模式', true);
-    if (!cfg.baseUrl) throw new ApiError('未填写接口地址 (Base URL)', true);
     if (!cfg.model) throw new ApiError('未填写模型名称', true);
+    if (provider === 'chatgpt') return;
+    if (!cfg.baseUrl) throw new ApiError('未填写接口地址 (Base URL)', true);
     let host = '';
     try { host = new URL(trimUrl(cfg.baseUrl)).host; } catch (e) { throw new ApiError('接口地址格式不正确', true); }
     if (!cfg.apiKey && OFFICIAL_HOSTS.includes(host)) throw new ApiError('未填写 API Key，请在扩展设置中配置', true);
@@ -87,11 +115,17 @@ globalThis.NTUSUB_LLM = (() => {
         }
         const text = await res.text().catch(() => '');
         let detail = text.slice(0, 300);
+        let code = '';
         try {
           const j = JSON.parse(text);
           const e = Array.isArray(j) ? j[0] && j[0].error : j.error;
-          detail = (e && (e.message || (typeof e === 'string' ? e : ''))) || j.message || detail;
+          detail = (e && (e.message || (typeof e === 'string' ? e : ''))) || j.message || j.detail || detail;
+          code = (e && e.code) || j.code || '';
         } catch (e) { /* not JSON */ }
+        if (/^https:\/\/api\.openai\.com\/v1\/(responses|models)/.test(url)) {
+          const ce = chatgptError(String(code), detail, res.status);
+          if (ce && ce.fatal) throw ce;
+        }
         const retryable = res.status === 408 || res.status === 409 || res.status === 429 || res.status >= 500;
         lastErr = new ApiError(`HTTP ${res.status}: ${detail}`, !retryable);
         if (!retryable) throw lastErr;
@@ -115,6 +149,12 @@ globalThis.NTUSUB_LLM = (() => {
     const msgs = typeof messages === 'string' ? [{ role: 'user', content: messages }] : messages;
     const temp = cfg.temperature === '' || cfg.temperature == null || isNaN(+cfg.temperature) ? undefined : +cfg.temperature;
     let body;
+    if (provider === 'chatgpt') {
+      // Plan usage requires store:false and stream:true; system text goes in `instructions`, and
+      // temperature / max_output_tokens are not accepted.
+      body = { model: cfg.model, instructions: system, input: msgs.map((m) => ({ role: m.role, content: m.content })), store: false, stream: true };
+      return N.merge(body, parseJsonField(cfg.extraBody, '额外请求体'));
+    }
     if (provider === 'openai') {
       body = { model: cfg.model, messages: [{ role: 'system', content: system }, ...msgs] };
       if (stream) body.stream = true;
@@ -136,6 +176,9 @@ globalThis.NTUSUB_LLM = (() => {
   }
 
   function textOfResponse(provider, data) {
+    if (provider === 'chatgpt') {
+      return (data.output || []).flatMap((o) => o.content || []).filter((c) => c.type === 'output_text').map((c) => c.text || '').join('');
+    }
     if (provider === 'openai') {
       const c = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
       return Array.isArray(c) ? c.map((p) => p.text || '').join('') : (c || '');
@@ -151,6 +194,14 @@ globalThis.NTUSUB_LLM = (() => {
 
   // Text delta carried by one streamed event (SSE `data:` payload), or '' if none.
   function textOfEvent(provider, j) {
+    if (provider === 'chatgpt') {
+      if (j.type === 'response.output_text.delta') return j.delta || '';
+      if (j.type === 'response.failed' || j.type === 'error') {
+        const e = (j.response && j.response.error) || j.error || j;
+        throw chatgptError(String(e.code || ''), e.message || '') || new ApiError('ChatGPT 返回错误：' + (e.message || e.code || '未知错误'));
+      }
+      return '';
+    }
     if (j.error) throw new ApiError((j.error && j.error.message) || String(j.error));
     if (provider === 'openai') {
       const d = j.choices && j.choices[0] && j.choices[0].delta;
@@ -167,6 +218,7 @@ globalThis.NTUSUB_LLM = (() => {
 
   async function callModel(provider, cfg, system, messages, opts = {}) {
     checkConfig(provider, cfg);
+    if (provider === 'chatgpt') return streamModel(provider, cfg, system, messages, () => {}, opts); // streaming only
     const res = await fetchWithRetry(endpoint(provider, cfg, 'chat'), {
       method: 'POST',
       headers: headersFor(provider, cfg),
@@ -183,15 +235,17 @@ globalThis.NTUSUB_LLM = (() => {
     checkConfig(provider, cfg);
     const res = await fetchWithRetry(endpoint(provider, cfg, 'stream'), {
       method: 'POST',
-      headers: headersFor(provider, cfg),
+      headers: await requestHeaders(provider, cfg),
       body: JSON.stringify(buildBody(provider, cfg, system, messages, { ...opts, stream: true }))
     }, { ...opts, attempts: opts.attempts || 2 });
 
     let full = '';
+    let finished = provider !== 'chatgpt'; // Responses streams end with response.completed / .incomplete
     const emit = (t) => { if (t) { full += t; onText(t, full); } };
     // Some compatible proxies ignore `stream` and answer with plain JSON.
     if (/application\/json/i.test(res.headers.get('content-type') || '')) {
       emit(textOfResponse(provider, await res.json()));
+      finished = true;
       if (!full) throw new ApiError('模型返回为空');
       return full;
     }
@@ -206,6 +260,7 @@ globalThis.NTUSUB_LLM = (() => {
       if (!payload || payload === '[DONE]') return;
       let j;
       try { j = JSON.parse(payload); } catch (e) { return; }
+      if (j.type === 'response.completed' || j.type === 'response.incomplete') finished = true;
       emit(textOfEvent(provider, j));
     };
     for (;;) {
@@ -230,6 +285,7 @@ globalThis.NTUSUB_LLM = (() => {
       }
     }
     handleLine(buf.trim());
+    if (!finished) throw new ApiError(full ? '响应在完成前中断' : '模型返回为空');
     if (!full) throw new ApiError('模型返回为空');
     return full;
   }
@@ -237,11 +293,14 @@ globalThis.NTUSUB_LLM = (() => {
   async function listModels(provider, cfg) {
     const res = await fetchWithRetry(endpoint(provider, cfg, 'models'), {
       method: 'GET',
-      headers: headersFor(provider, cfg)
+      headers: await requestHeaders(provider, cfg)
     }, { attempts: 1 });
     const data = await res.json();
     let ids = [];
-    if (provider === 'gemini') {
+    if (provider === 'chatgpt') {
+      // Account-specific catalog: keep the models meant to be listed.
+      ids = (data.data || data.models || []).filter((m) => !m.visibility || m.visibility === 'list').map((m) => m.slug || m.id);
+    } else if (provider === 'gemini') {
       ids = (data.models || [])
         .filter((m) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
         .map((m) => String(m.name || '').replace(/^models\//, ''));
@@ -308,5 +367,5 @@ globalThis.NTUSUB_LLM = (() => {
     });
   }
 
-  return { ApiError, endpoint, headersFor, checkConfig, fetchWithRetry, buildBody, callModel, streamModel, listModels, extractJson, repairJson, fixTexEscapes };
+  return { ApiError, setTokenProvider, endpoint, headersFor, checkConfig, fetchWithRetry, buildBody, callModel, streamModel, listModels, extractJson, repairJson, fixTexEscapes };
 })();

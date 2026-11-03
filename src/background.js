@@ -1,8 +1,15 @@
-importScripts('shared.js', 'llm.js');
+importScripts('shared.js', 'llm.js', 'chatgpt.js');
 
 const N = globalThis.NTUSUB;
 const L = globalThis.NTUSUB_LLM;
+const CGPT = globalThis.NTUSUB_CGPT;
 const { ApiError } = L;
+L.setTokenProvider(() => CGPT.getToken());
+
+// ChatGPT access tokens are handed only to the extension's own pages (side panel), never to
+// content scripts running inside web pages.
+const fromExtensionPage = (sender) => !!sender && !sender.tab && typeof sender.url === 'string' &&
+  sender.url.startsWith(chrome.runtime.getURL(''));
 
 // ------------------------------------------------------------------ prompts
 function buildSystemPrompt(s, titles) {
@@ -156,6 +163,16 @@ const handlers = {
 
   async 'ntusub-models'(msg) {
     return { models: await L.listModels(msg.provider, msg.cfg) };
+  },
+
+  // ---- Sign in with ChatGPT (one sign-in shared by every setting that uses the subscription)
+  async 'ntusub-cgpt-login'(msg) { await CGPT.startLogin({ newAccount: !!msg.newAccount }); return {}; },
+  async 'ntusub-cgpt-cancel'() { await CGPT.cancelLogin(); return {}; },
+  async 'ntusub-cgpt-logout'() { return CGPT.logout(); },
+  async 'ntusub-cgpt-status'() { return CGPT.status(); },
+  async 'ntusub-cgpt-token'(msg, sender) {
+    if (!fromExtensionPage(sender)) throw new ApiError('not allowed', true);
+    return { token: await CGPT.getToken() };
   },
 
   async 'ntusub-cache-touch'(msg) {

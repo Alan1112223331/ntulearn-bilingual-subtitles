@@ -62,7 +62,7 @@
 
 | | 基础模式 | AI 精准模式 |
 | --- | --- | --- |
-| 配置 | 无需配置 | 需要 API Key |
+| 配置 | 无需配置 | API Key，或登录 ChatGPT 使用订阅额度 |
 | 费用 | 免费 | 取决于你用的模型 |
 | 专业术语 | 一般，偶尔不准 | 准确，支持课程背景与术语表 |
 | 上下文理解 | 逐句翻译 | 结合前后文，能修正识别错误 |
@@ -79,6 +79,9 @@
 | OpenAI | `https://api.openai.com/v1` | `…/chat/completions` |
 | Anthropic | `https://api.anthropic.com` | `…/v1/messages` |
 | Gemini | `https://generativelanguage.googleapis.com/v1beta` | `…/models/{模型}:generateContent` |
+| ChatGPT 订阅 | 无需填写（登录即可） | `https://api.openai.com/v1/responses` |
+
+- **ChatGPT 订阅**：选这个格式后点 **Continue with ChatGPT**，在 OpenAI 官方页面登录并授权，用你的 ChatGPT 套餐额度驱动翻译、笔记和问答，不需要 API Key。使用的是 OpenAI 官方的 [Sign in with ChatGPT（ChatGPT plan usage）](https://developers.openai.com/siwc/token-sharing-open-source)，需要你的套餐支持在第三方应用中使用（OpenAI 预览功能）。**只需登录一次**：翻译模型和笔记问答专用模型都选「ChatGPT 订阅」时共用同一个登录；额度用完时会提示，可在 ChatGPT 设置的用量页查看和调整
 
 - **获取模型列表**：从接口拉取可用模型，也可直接手输模型名
 - **测试连接**：翻译一段示例字幕，验证接口和输出格式
@@ -132,7 +135,8 @@ src/
   inject.js       MAIN world：网络截获字幕、预取分段
   parsers.js      SRT / WebVTT / TTML(DFXP) 解析
   content.js      字幕源选择、翻译调度、缓存、字幕层渲染
-  llm.js          三种 API 格式的共享客户端（流式输出、多轮对话、JSON 修复）
+  llm.js          各 API 格式的共享客户端（流式输出、多轮对话、JSON 修复、ChatGPT Responses）
+  chatgpt.js      Sign in with ChatGPT：登录、令牌刷新与撤销（在后台统一管理）
   background.js   字幕翻译提示词与结果解析、Google 翻译、缓存 LRU
 sidepanel/        侧边栏：panel.js 连接与状态，transcript / notes / chat 三个页面，md.js 安全的 Markdown 渲染
 options/          设置页（也嵌入在侧边栏的"设置"页）
@@ -161,6 +165,7 @@ python -m http.server 8765
 ## 🔒 隐私
 
 - API Key 与设置只保存在本机 `chrome.storage.local`，不会同步、不会上传
+- ChatGPT 订阅：登录在 OpenAI 官方页面完成，扩展拿不到你的密码；登录凭证（OAuth token）只保存在本机扩展存储中，只发送给 auth.openai.com 和 api.openai.com，退出登录时会向 OpenAI 撤销授权
 - 基础模式：字幕文本会发送到 Google 翻译（translate.googleapis.com）
 - AI 模式：字幕文本（以及页面标题作为翻译上下文）只会发送给**你自己配置的**模型接口；使用侧边栏的笔记和对话时，会把整节课的字幕和你的问题发送给该接口
 - 译文、笔记和对话记录只保存在本机，可在设置页一键清空

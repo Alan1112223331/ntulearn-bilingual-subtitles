@@ -415,7 +415,7 @@
   function hasApi() {
     if (N.isBasic(settings)) return true;
     const cfg = settings.providers[settings.provider];
-    return cfg && cfg.baseUrl && cfg.model;
+    return cfg && (cfg.baseUrl || settings.provider === 'chatgpt') && cfg.model;
   }
 
   function pump() {

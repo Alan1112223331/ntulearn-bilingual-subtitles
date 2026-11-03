@@ -146,7 +146,8 @@ globalThis.ChatView = (() => {
     if (!P.S.cues.length) { ctxEl.textContent = P.S.port ? '等待字幕加载…' : '未连接到视频'; return; }
     const tr = transcriptForPrompt();
     ctxEl.innerHTML = `<span class="dot"></span>正在看 <b>${P.fmt(P.currentTime())}</b> · ` +
-      (tr.full ? '已载入整节课字幕' : (globalThis.NotesView.hasNotes() ? '课程较长：使用笔记大纲 + 当前片段' : '课程较长：使用当前前后约 10 分钟字幕'));
+      (tr.full ? '已载入整节课字幕' : (globalThis.NotesView.hasNotes() ? '课程较长：使用笔记大纲 + 当前片段' : '课程较长：使用当前前后约 10 分钟字幕')) +
+      (P.assistConfig().provider === 'chatgpt' ? ' · Using ChatGPT plan' : '');
   }
 
   // -------------------------------------------------------------- sending

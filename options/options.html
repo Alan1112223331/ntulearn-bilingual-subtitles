@@ -39,14 +39,16 @@
         <button data-p="openai">OpenAI 格式</button>
         <button data-p="anthropic">Anthropic 格式</button>
         <button data-p="gemini">Gemini 格式</button>
+        <button data-p="chatgpt">ChatGPT 订阅</button>
       </div>
       <p class="muted small" id="providerHint"></p>
+      <div class="cgpt-box"></div>
 
-      <div class="field">
+      <div class="field key-only">
         <label for="baseUrl">接口地址 Base URL</label>
         <input id="baseUrl" type="url" spellcheck="false" autocomplete="off">
       </div>
-      <div class="field">
+      <div class="field key-only">
         <label for="apiKey">API Key</label>
         <div class="inline">
           <input id="apiKey" type="password" spellcheck="false" autocomplete="off">
@@ -70,11 +72,11 @@
 
       <details>
         <summary>高级参数</summary>
-        <div class="field">
+        <div class="field key-only">
           <label for="temperature">Temperature <span class="muted">（留空 = 不发送，推理模型请留空）</span></label>
           <input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="例如 0.3">
         </div>
-        <div class="field">
+        <div class="field key-only">
           <label for="extraHeaders">额外请求头 (JSON)</label>
           <textarea id="extraHeaders" rows="2" spellcheck="false" placeholder='{"X-Custom": "value"}'></textarea>
         </div>
@@ -96,7 +98,7 @@
     <section class="card" id="assistCard">
       <h2>笔记与问答</h2>
       <p class="ai-only-note" id="assistNote">侧边栏的笔记和问答仅在 <b>AI 精准模式</b> 下可用。</p>
-      <label class="check"><input type="checkbox" id="notesEnabled"> 启用 AI 笔记 <span class="muted">（关闭后侧边栏不显示笔记页，也不会生成笔记、不消耗额度）</span></label>
+      <label class="check"><input type="checkbox" id="notesEnabled"> <span>启用 AI 笔记 <span class="muted">（关闭后侧边栏不显示笔记页，也不会生成笔记、不消耗额度）</span></span></label>
 
       <h3 class="sub">专用模型 <span class="badge">可选</span> <span class="muted small" id="assistState"></span></h3>
       <p class="muted small">笔记和问答要读整节课的字幕，对模型的长文本理解要求更高。在这里另配一个模型后，笔记与问答使用它，字幕翻译仍使用上面的模型；不填模型名称则全部使用上面的模型。</p>
@@ -104,13 +106,15 @@
         <button type="button" data-p="openai">OpenAI 格式</button>
         <button type="button" data-p="anthropic">Anthropic 格式</button>
         <button type="button" data-p="gemini">Gemini 格式</button>
+        <button type="button" data-p="chatgpt">ChatGPT 订阅</button>
       </div>
       <p class="muted small" id="aProviderHint"></p>
-      <div class="field">
+      <div class="cgpt-box"></div>
+      <div class="field key-only">
         <label for="aBaseUrl">接口地址 Base URL</label>
         <input id="aBaseUrl" type="url" spellcheck="false" autocomplete="off">
       </div>
-      <div class="field">
+      <div class="field key-only">
         <label for="aApiKey">API Key</label>
         <div class="inline">
           <input id="aApiKey" type="password" spellcheck="false" autocomplete="off">
@@ -133,11 +137,11 @@
       </div>
       <details>
         <summary>高级参数</summary>
-        <div class="field">
+        <div class="field key-only">
           <label for="aTemperature">Temperature <span class="muted">（留空 = 不发送，推理模型请留空）</span></label>
           <input id="aTemperature" type="number" min="0" max="2" step="0.1" placeholder="例如 0.3">
         </div>
-        <div class="field">
+        <div class="field key-only">
           <label for="aExtraHeaders">额外请求头 (JSON)</label>
           <textarea id="aExtraHeaders" rows="2" spellcheck="false" placeholder='{"X-Custom": "value"}'></textarea>
         </div>

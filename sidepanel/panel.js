@@ -3,6 +3,15 @@
 globalThis.Panel = (() => {
   const N = globalThis.NTUSUB;
 
+  // ChatGPT subscription: the background worker owns the sign-in and refreshes the token.
+  globalThis.NTUSUB_LLM.setTokenProvider(async () => {
+    const r = await chrome.runtime.sendMessage({ type: 'ntusub-cgpt-token' });
+    if (r && r.ok) return r.token;
+    const e = new Error((r && r.error) || 'ChatGPT 登录不可用');
+    e.fatal = !r || r.fatal !== false;
+    throw e;
+  });
+
   const listeners = {};
   const on = (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); };
   const emit = (ev, ...args) => (listeners[ev] || []).forEach((fn) => {
@@ -42,7 +51,7 @@ globalThis.Panel = (() => {
   const isAI = () => {
     const s = S.settings;
     const cfg = s.providers[s.provider];
-    return N.AI_PROVIDERS.includes(s.provider) && !!(cfg && cfg.baseUrl && cfg.model);
+    return N.AI_PROVIDERS.includes(s.provider) && !!(cfg && (cfg.baseUrl || s.provider === 'chatgpt') && cfg.model);
   };
   const aiConfig = () => ({ provider: S.settings.provider, cfg: S.settings.providers[S.settings.provider] });
   // Notes and chat use the dedicated model when one is configured.

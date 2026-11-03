@@ -53,6 +53,8 @@
           msg.lines.forEach((l) => { t[l.id] = bus.fakeTranslate(l.text); });
           return { ok: true, translations: t };
         }
+        // ChatGPT sign-in status for the settings page: set bus.cgpt to simulate a signed-in account.
+        if (msg.type === 'ntusub-cgpt-status') return { ok: true, signedIn: false, ...(bus.cgpt || {}) };
         return { ok: true };
       },
       onMessage: { addListener: (f) => { if (role === 'content') bus.tabMsgL.push(f); } },

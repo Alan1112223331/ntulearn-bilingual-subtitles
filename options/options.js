@@ -7,17 +7,20 @@ if (new URLSearchParams(location.search).has('embed')) document.documentElement.
 const HINTS = {
   openai: '兼容 OpenAI Chat Completions 的接口：OpenAI、DeepSeek、通义千问、OpenRouter、one-api / new-api 等。Base URL 一般以 /v1 结尾，会自动拼接 /chat/completions。',
   anthropic: 'Anthropic Messages API 或兼容代理。填写根地址即可（如 https://api.anthropic.com），会自动拼接 /v1/messages。',
-  gemini: 'Google Gemini generateContent 接口或兼容代理。会自动拼接 /v1beta/models/{模型}:generateContent。'
+  gemini: 'Google Gemini generateContent 接口或兼容代理。会自动拼接 /v1beta/models/{模型}:generateContent。',
+  chatgpt: '用你的 ChatGPT 套餐额度（Sign in with ChatGPT），不需要 API Key。请求发往 OpenAI 官方 Responses API，用量计入你的 ChatGPT 套餐；只需登录一次，翻译和笔记问答共用。'
 };
 const BODY_PLACEHOLDER = {
   openai: '{"reasoning_effort": "low"}',
   anthropic: '{"max_tokens": 8192}',
-  gemini: '{"generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}}'
+  gemini: '{"generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}}',
+  chatgpt: '{"reasoning": {"effort": "low"}}'
 };
 const MODEL_EXAMPLES = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-5-5',
-  gemini: 'gemini-2.5-flash'
+  gemini: 'gemini-2.5-flash',
+  chatgpt: '登录后获取'
 };
 // Models that cannot do chat translation (embeddings, rerankers, speech, images…).
 const NON_CHAT_MODEL = /embed|rerank|bge-|tts|whisper|voice|speech|audio|transcri|dall-e|image|imagen|moderation|sensevoice|cosyvoice|\bsd[-_]|stable-diffusion|flux/i;
@@ -57,6 +60,7 @@ function showEngine() {
 function readProviderForm() {
   const p = draft.providers[cur];
   for (const f of PROVIDER_FIELDS) p[f] = $('#' + f).value.trim();
+  if (cur === 'chatgpt') Object.assign(p, { baseUrl: N.DEFAULTS.providers.chatgpt.baseUrl, apiKey: '', temperature: '', extraHeaders: '' });
 }
 
 function fillProviderForm() {
@@ -66,7 +70,9 @@ function fillProviderForm() {
   $('#providerHint').textContent = HINTS[cur];
   $('#baseUrl').placeholder = N.DEFAULTS.providers[cur].baseUrl;
   $('#extraBody').placeholder = '例如 ' + BODY_PLACEHOLDER[cur];
-  $('#model').placeholder = `手动输入，或点「获取模型列表」选择（如 ${MODEL_EXAMPLES[cur]}）`;
+  $('#model').placeholder = cur === 'chatgpt' ? '登录后点「获取模型列表」选择' : `手动输入，或点「获取模型列表」选择（如 ${MODEL_EXAMPLES[cur]}）`;
+  $('#aiPanel').classList.toggle('is-cgpt', cur === 'chatgpt');
+  renderCgpt();
   modelPicker.setModels([]);
   $('#testResult').innerHTML = '';
 }
@@ -207,6 +213,7 @@ let aCur = 'openai'; // selected format of the dedicated model
 function readAssistForm() {
   draft.assist.provider = aCur;
   for (const f in ASSIST_IDS) draft.assist[f] = $(ASSIST_IDS[f]).value.trim();
+  if (aCur === 'chatgpt') Object.assign(draft.assist, { baseUrl: '', apiKey: '', temperature: '', extraHeaders: '' });
 }
 
 function fillAssistForm() {
@@ -223,7 +230,9 @@ function updateAssistForm() {
   $('#aProviderHint').textContent = HINTS[p];
   $('#aBaseUrl').placeholder = N.DEFAULTS.providers[p].baseUrl;
   $('#aExtraBody').placeholder = '例如 ' + BODY_PLACEHOLDER[p];
-  $('#aModel').placeholder = `留空 = 使用上面的翻译模型（如 ${MODEL_EXAMPLES[p]}）`;
+  $('#aModel').placeholder = p === 'chatgpt' ? '留空 = 使用上面的翻译模型；登录后可获取列表' : `留空 = 使用上面的翻译模型（如 ${MODEL_EXAMPLES[p]}）`;
+  $('#assistCard').classList.toggle('is-cgpt', p === 'chatgpt');
+  renderCgpt();
   const model = $('#aModel').value.trim();
   $('#assistState').innerHTML = model ? `<span class="ok">已启用</span> · 笔记与问答使用 ${esc(model)}` : '未配置 · 笔记与问答使用上面的翻译模型';
 }
@@ -255,6 +264,93 @@ async function fetchModels(picker, btn, input, resultEl, provider, cfg, perm) {
     btn.disabled = false;
     btn.textContent = '获取模型列表';
   }
+}
+
+// ------------------------------------------------------- ChatGPT sign-in
+// One sign-in serves every setting that uses the subscription; both boxes show the same state.
+const CGPT_ORIGINS = ['https://auth.openai.com/*', 'https://api.openai.com/*', 'http://127.0.0.1/*'];
+const USAGE_URL = 'https://chatgpt.com/#settings';
+let cgpt = null; // last status from the background
+let welcomeDismissed = false;
+
+function cgptHTML(st, withWelcome) {
+  if (!st) return '<p class="muted">正在读取登录状态…</p>';
+  const login = st.login || {};
+  if (login.status === 'pending' && !login.expired) {
+    return '<p>已在新标签页打开 ChatGPT 登录页。登录并授权后，那个标签页会自动关闭并回到这里。</p>' +
+      '<div class="cgpt-actions"><button type="button" class="ghost" data-cgpt="cancel">取消登录</button></div>';
+  }
+  if (login.status === 'exchanging') return '<p>正在完成登录…</p>';
+  if (st.signedIn) {
+    const who = esc(st.email || st.name || 'ChatGPT 账号') + (st.plan ? ` · ${esc(st.plan)}` : '');
+    const welcome = withWelcome && login.status === 'ok' && login.firstTime && !welcomeDismissed
+      ? '<div class="cgpt-welcome"><b>You\'re using your ChatGPT plan</b><p class="muted small">本扩展的 AI 请求（选择了「ChatGPT 订阅」的翻译、笔记和问答）会使用你的 ChatGPT 套餐额度，可以在 ChatGPT 设置里查看和调整用量。</p>' +
+        '<button type="button" class="ghost" data-cgpt="welcome-ok">Got it</button></div>'
+      : '';
+    return welcome +
+      `<div class="cgpt-row"><span class="cgpt-dot"></span><b>Using ChatGPT plan</b><span class="muted">${who}</span></div>` +
+      (st.planScope ? '' : '<p class="cgpt-err">该账号没有授予使用套餐的权限，请退出后重新登录。</p>') +
+      '<p class="muted small">翻译和笔记问答共用这一个登录，在这里登录过一次，两处都不用再登录。</p>' +
+      `<div class="cgpt-actions"><a href="${USAGE_URL}" target="_blank" rel="noopener">Manage usage</a>` +
+      '<button type="button" class="ghost" data-cgpt="logout">退出登录</button>' +
+      '<button type="button" class="linkish" data-cgpt="other">换一个账号</button></div>';
+  }
+  const err = login.status === 'error' ? `<p class="cgpt-err">登录失败：${esc(login.error)}</p>` : '';
+  const prev = st.hasPrevious && st.previousEmail
+    ? `<p class="muted small">将登录上次的账号 ${esc(st.previousEmail)} · <button type="button" class="linkish" data-cgpt="other">换一个账号</button></p>` : '';
+  return err +
+    `<div class="cgpt-actions"><button type="button" class="cgpt-btn" data-cgpt="login">Continue with ChatGPT</button></div>` + prev +
+    '<p class="muted small">需要支持「在第三方应用中使用 ChatGPT 套餐」的方案（OpenAI 预览功能）。登录在新标签页的 OpenAI 官方页面完成，扩展不会接触你的密码。</p>';
+}
+
+function renderCgpt() {
+  // The one-time welcome goes in the first box that is in use.
+  const boxes = [...document.querySelectorAll('.cgpt-box')];
+  const first = boxes.find((el) => el.offsetParent !== null);
+  boxes.forEach((el) => { el.innerHTML = cgptHTML(cgpt, el === first); });
+}
+
+async function refreshCgpt() {
+  try {
+    const res = await chrome.runtime.sendMessage({ type: 'ntusub-cgpt-status' });
+    if (res && res.ok) cgpt = res;
+  } catch (e) { /* worker restarting */ }
+  renderCgpt();
+}
+
+function initCgpt() {
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-cgpt]');
+    if (!b) return;
+    const act = b.dataset.cgpt;
+    if (act === 'login' || act === 'other') {
+      // Permission prompt must start synchronously inside the click.
+      const perm = chrome.permissions.request({ origins: CGPT_ORIGINS }).catch(() => false);
+      welcomeDismissed = false;
+      if (!(await perm)) {
+        cgpt = { ...(cgpt || {}), login: { status: 'error', error: '需要允许访问 auth.openai.com、api.openai.com 和本机回调地址才能登录' } };
+        renderCgpt();
+        return;
+      }
+      const res = await chrome.runtime.sendMessage({ type: 'ntusub-cgpt-login', newAccount: act === 'other' || (cgpt && cgpt.signedIn) });
+      if (!res || !res.ok) { cgpt = { ...(cgpt || {}), login: { status: 'error', error: (res && res.error) || '无法开始登录' } }; renderCgpt(); }
+    } else if (act === 'cancel') {
+      await chrome.runtime.sendMessage({ type: 'ntusub-cgpt-cancel' });
+    } else if (act === 'logout') {
+      if (!confirm('退出 ChatGPT 登录？选择了「ChatGPT 订阅」的翻译和笔记问答将无法使用，直到重新登录。')) return;
+      const res = await chrome.runtime.sendMessage({ type: 'ntusub-cgpt-logout' });
+      if (res && res.ok && !res.revoked) alert('已在本机退出登录，但未能确认 OpenAI 端已撤销授权；如有需要，可在 ChatGPT 设置中断开本扩展。');
+    } else if (act === 'welcome-ok') {
+      welcomeDismissed = true;
+      renderCgpt();
+      return;
+    }
+    refreshCgpt();
+  });
+  chrome.storage.onChanged.addListener((ch, area) => {
+    if ((area === 'local' && ch.chatgptAuth) || (area === 'session' && ch.chatgptLogin)) refreshCgpt();
+  });
+  refreshCgpt();
 }
 
 // ------------------------------------------------------------------ general
@@ -364,6 +460,7 @@ async function init() {
   cur = N.AI_PROVIDERS.includes(draft.provider) ? draft.provider
     : (N.AI_PROVIDERS.includes(draft.aiProvider) ? draft.aiProvider : 'openai');
   fillForm();
+  initCgpt();
   refreshCacheStats();
 
   document.querySelectorAll('#engines .engine').forEach((b) => b.addEventListener('click', () => {
@@ -403,7 +500,8 @@ async function init() {
   });
 
   $('#clearProvider').addEventListener('click', () => {
-    if (!confirm(`清空「${N.PROVIDER_LABELS[cur]}」的接口地址、API Key、模型名称和高级参数？保存后生效。`)) return;
+    const what = cur === 'chatgpt' ? '的模型名称和高级参数（不会退出 ChatGPT 登录）' : '的接口地址、API Key、模型名称和高级参数';
+    if (!confirm(`清空「${N.PROVIDER_LABELS[cur]}」${what}？保存后生效。`)) return;
     for (const f of PROVIDER_FIELDS) $('#' + f).value = '';
     modelPicker.setModels([]);
     $('#testResult').innerHTML = '<span class="muted">已清空，点「保存设置」后生效。</span>';

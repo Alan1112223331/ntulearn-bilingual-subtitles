@@ -3,9 +3,10 @@ globalThis.NTUSUB = (() => {
   const PROMPT_VERSION = 1;
 
   // 'google' = basic mode (free Google Translate, no configuration);
-  // 'openai' | 'anthropic' | 'gemini' = AI mode with a user-configured model.
+  // 'openai' | 'anthropic' | 'gemini' = AI mode with a user-configured model;
+  // 'chatgpt' = AI mode on the user's ChatGPT subscription (Sign in with ChatGPT, no API key).
   const BASIC_PROVIDER = 'google';
-  const AI_PROVIDERS = ['openai', 'anthropic', 'gemini'];
+  const AI_PROVIDERS = ['openai', 'anthropic', 'gemini', 'chatgpt'];
 
   const DEFAULTS = {
     enabled: true,
@@ -30,6 +31,15 @@ globalThis.NTUSUB = (() => {
       },
       gemini: {
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+        apiKey: '',
+        model: '',
+        temperature: '',
+        extraHeaders: '',
+        extraBody: ''
+      },
+      // Fixed endpoint; the sign-in is shared and lives in chrome.storage.local.chatgptAuth.
+      chatgpt: {
+        baseUrl: 'https://api.openai.com/v1',
         apiKey: '',
         model: '',
         temperature: '',
@@ -76,7 +86,8 @@ globalThis.NTUSUB = (() => {
     google: '基础模式 · Google 翻译',
     openai: 'OpenAI 格式',
     anthropic: 'Anthropic 格式',
-    gemini: 'Gemini 格式'
+    gemini: 'Gemini 格式',
+    chatgpt: 'ChatGPT 订阅'
   };
 
   const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
@@ -124,7 +135,7 @@ globalThis.NTUSUB = (() => {
     const a = s.assist || {};
     if (!AI_PROVIDERS.includes(a.provider) || !(a.model || '').trim()) return null;
     const { provider, ...cfg } = a;
-    if (!cfg.baseUrl) cfg.baseUrl = DEFAULTS.providers[provider].baseUrl;
+    if (!cfg.baseUrl || provider === 'chatgpt') cfg.baseUrl = DEFAULTS.providers[provider].baseUrl;
     return { provider, cfg };
   }
 
