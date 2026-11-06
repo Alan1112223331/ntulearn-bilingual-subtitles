@@ -8,6 +8,7 @@
 
 装好即用（免配置）· 可接入大模型精准翻译专业术语 · 整片预翻译无延迟
 
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-%E5%AE%89%E8%A3%85-c8102e?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/iddcpapklpfbmnlimheoclbgkkpnobld)
 [![Release](https://img.shields.io/github/v/release/Alan1112223331/ntulearn-bilingual-subtitles?color=c8102e)](https://github.com/Alan1112223331/ntulearn-bilingual-subtitles/releases/latest)
 ![Manifest V3](https://img.shields.io/badge/Chrome%20%2F%20Edge-Manifest%20V3-4285F4)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -48,12 +49,21 @@
 
 ## 📦 安装
 
+**从 Chrome 应用商店安装（推荐）**：打开 [商店页面](https://chromewebstore.google.com/detail/iddcpapklpfbmnlimheoclbgkkpnobld)，点 **添加至 Chrome**，之后会自动更新。打开任意 Media Gallery 视频即可看到双语字幕（默认基础模式，无需配置）。
+
+<details>
+<summary>手动安装（下载 zip）</summary>
+
 1. 到 [Releases](https://github.com/Alan1112223331/ntulearn-bilingual-subtitles/releases/latest) 下载 `ntulearn-bilingual-subtitles-v*.zip` 并**解压**（或直接 `git clone` 本仓库）
 2. 打开 `chrome://extensions`（Edge 为 `edge://extensions`），打开右上角 **开发者模式**
 3. 点击 **加载已解压的扩展程序**，选择解压出的文件夹（里面有 `manifest.json`）
-4. 完成！打开任意 Media Gallery 视频即可看到双语字幕（默认基础模式，无需配置）
+4. 完成！打开任意 Media Gallery 视频即可看到双语字幕
 
-> 需要 Chrome / Edge 116 及以上（侧边栏功能所需）。更新时下载新版本覆盖文件夹，再在扩展页点一下刷新按钮即可。
+更新时下载新版本覆盖文件夹，再在扩展页点一下刷新按钮即可。
+
+</details>
+
+> 需要 Chrome / Edge 116 及以上（侧边栏功能所需）。
 
 ## ⚙️ 翻译引擎
 
